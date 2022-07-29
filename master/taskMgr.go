@@ -240,15 +240,15 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 	groups := flow.getRelevantGroups(inputSubscription, entityID)
 	deploymentActions := make([]*DeploymentAction, 0)
 
+	DEBUG.Println("[related groups]: ", groups)
+
 	for _, group := range groups {
 		INFO.Println("# hash =", group.GetHash())
 		hashID := group.GetHash()
 		// check if the associated task instance is already created
 		if task, exist := flow.ExecutionPlan[hashID]; exist {
-			INFO.Printf("inputs: %+v", task.Inputs)
 			entitiesList := flow.searchRelevantEntities(&group, entityID)
 			for _, entity := range entitiesList {
-				DEBUG.Printf("====UPDATE===input entity : %+v\r\n", entity)
 				newInput := true
 				for _, input := range task.Inputs {
 					if input.ID == entity.ID {
@@ -263,6 +263,7 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 					inputEntity := InputEntity{}
 					inputEntity.ID = entity.ID
 					inputEntity.Type = entity.Type
+					inputEntity.Location = entity.Location
 					inputEntity.AttributeList = inputSubscription.InputSelector.SelectedAttributes
 
 					task.Inputs = append(task.Inputs, inputEntity)
@@ -283,11 +284,12 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 
 					deploymentActions = append(deploymentActions, &deploymentAction)
 				} else {
-					// check if the location if this input entity is changed
-					locationChanged := true
+					// check if the location in this input entity is changed
+					locationChanged := false
 					for i := 0; i < len(task.Inputs); i++ {
-						if task.Inputs[i].Location.IsEqual(&entity.Location) == false {
+						if task.Inputs[i].ID == entity.ID && task.Inputs[i].Location.IsEqual(&entity.Location) == false {
 							locationChanged = true
+							DEBUG.Println("[location changed] entity: ", entity.ID)
 							// update the input entities with the new location
 							task.Inputs[i].Location = entity.Location
 							break
@@ -310,7 +312,7 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 
 					// prepare the new deployment actions for this task migration
 					if newOptimalWorkerID != task.WorkerID {
-						DEBUG.Printf("+++++ task migration is required, from %s to %s\r\n", task.WorkerID, task)
+						INFO.Println("[Task migration]:", task.TaskID, " migrated from ", task.WorkerID, " to ", newOptimalWorkerID)
 
 						removeTaskAction := flow.removeExistingTask(task)
 						deploymentActions = append(deploymentActions, removeTaskAction)
@@ -390,17 +392,21 @@ func (flow *FogFlow) addNewTask(task *TaskConfig) *DeploymentAction {
 }
 
 func (flow *FogFlow) removeExistingTask(task *TaskConfig) *DeploymentAction {
-	//generate a deployment action
-	taskInstance := ScheduledTaskInstance{}
-	taskInstance.ID = task.TaskID
-	taskInstance.WorkerID = flow.DeploymentPlan[task.TaskID].WorkerID
+	if _, exist := flow.DeploymentPlan[task.TaskID]; exist {
+		//generate a deployment action
+		taskInstance := ScheduledTaskInstance{}
+		taskInstance.ID = task.TaskID
+		taskInstance.WorkerID = flow.DeploymentPlan[task.TaskID].WorkerID
 
-	// create a deployment action
-	deploymentAction := DeploymentAction{}
-	deploymentAction.ActionType = "REMOVE_TASK"
-	deploymentAction.ActionInfo = taskInstance
+		// create a deployment action
+		deploymentAction := DeploymentAction{}
+		deploymentAction.ActionType = "REMOVE_TASK"
+		deploymentAction.ActionInfo = taskInstance
 
-	return &deploymentAction
+		return &deploymentAction
+	}
+
+	return nil
 }
 
 func (flow *FogFlow) removeExecutionPlan(entityID string, inputSubscription *InputSubscription) []*DeploymentAction {
@@ -427,7 +433,9 @@ func (flow *FogFlow) removeExecutionPlan(entityID string, inputSubscription *Inp
 
 				// add it into the deployment action list
 				deploymentAction := flow.removeExistingTask(task)
-				deploymentActions = append(deploymentActions, deploymentAction)
+				if deploymentAction != nil {
+					deploymentActions = append(deploymentActions, deploymentAction)
+				}
 
 				// remove the group key from the table
 				DEBUG.Printf(" GROUP KEY %+v\r\n", group)
@@ -497,7 +505,7 @@ func (flow *FogFlow) updateGroupedKeyValueTable(sub *InputSubscription, entityID
 		_, exist := flow.UniqueKeys[key]
 		if exist == false {
 			flow.UniqueKeys[key] = make([]interface{}, 0)
-			flow.UniqueKeys[key] = append(flow.UniqueKeys[key], "all")
+			flow.UniqueKeys[key] = append(flow.UniqueKeys[key], "ALL")
 		}
 	} else {
 		key := name + "-" + groupKey
@@ -533,7 +541,7 @@ func (flow *FogFlow) updateGroupedKeyValueTable(sub *InputSubscription, entityID
 		}
 	}
 
-	fmt.Printf("unique key table %+v\r\n", flow.UniqueKeys)
+	DEBUG.Println("[Unique Key Table]:", flow.UniqueKeys)
 }
 
 func (flow *FogFlow) getRelevantGroups(sub *InputSubscription, entityID string) []GroupInfo {
@@ -548,8 +556,6 @@ func (flow *FogFlow) getRelevantGroups(sub *InputSubscription, entityID string) 
 	info := make(GroupInfo)
 
 	groupKey := selector.GroupBy
-
-	DEBUG.Printf("group key = %+v\r\n", groupKey)
 
 	key := name + "-" + groupKey
 	if groupKey == "ALL" {
@@ -567,8 +573,6 @@ func (flow *FogFlow) getRelevantGroups(sub *InputSubscription, entityID string) 
 		info[key] = value
 	}
 	myKeySet[key] = true
-
-	DEBUG.Printf("info %+v\r\n", info)
 
 	groups = append(groups, info)
 
@@ -599,10 +603,6 @@ func (flow *FogFlow) searchRelevantEntities(group *GroupInfo, updatedEntityID st
 	for _, inputSub := range flow.Subscriptions {
 		selector := inputSub.InputSelector
 
-		DEBUG.Printf("SELECTOR %+v\r\n", selector)
-		DEBUG.Printf("REGISTRATIONS %+v\r\n", inputSub.ReceivedEntityRegistrations)
-		DEBUG.Printf("UPDATED ENTITY %+v\r\n", updatedEntityID)
-
 		// optimization for this specific case
 		/*		if group.ByID() == true {
 				entityRegistration := inputSub.ReceivedEntityRegistrations[updatedEntityID]
@@ -628,8 +628,6 @@ func (flow *FogFlow) searchRelevantEntities(group *GroupInfo, updatedEntityID st
 			restrictions[key] = v
 		}
 
-		DEBUG.Printf("restriction %+v\r\n", restrictions)
-
 		// filtering
 		for _, entityRegistration := range inputSub.ReceivedEntityRegistrations {
 			if entityRegistration.IsMatched(restrictions) == true {
@@ -641,9 +639,6 @@ func (flow *FogFlow) searchRelevantEntities(group *GroupInfo, updatedEntityID st
 
 				//the location metadata will be used later to decide where to deploy the fog function instance
 				inputEntity.Location = entityRegistration.GetLocation()
-
-				DEBUG.Printf("ENTITY REGISTRATION %+v\r\n", entityRegistration)
-				DEBUG.Printf("received input ENTITY %+v\r\n", inputEntity)
 
 				entities = append(entities, inputEntity)
 			}
@@ -760,12 +755,11 @@ func (tMgr *TaskMgr) handleSynchronousTaskIntent(taskIntent *TaskIntent) {
 	// add this fog function into the function map
 	tMgr.fogFlows_lock.Lock()
 	tMgr.fogFlows[fID] = &fogflow
-	DEBUG.Printf("~~~~~~~ add new flow %+s, %+v ~~~~~~~~~~~~~~~~~\r\n", fID, tMgr.fogFlows)
 	tMgr.fogFlows_lock.Unlock()
 }
 
 func (tMgr *TaskMgr) handleASynchronousTaskIntent(taskIntent *TaskIntent) {
-	INFO.Println("[ASYNC]orchestrating task intent: %+v", taskIntent)
+	INFO.Println("[Task Intent]: ", taskIntent)
 
 	fogflow := FogFlow{}
 
@@ -799,13 +793,10 @@ func (tMgr *TaskMgr) handleASynchronousTaskIntent(taskIntent *TaskIntent) {
 	// add this fog function into the function map
 	tMgr.fogFlows_lock.Lock()
 	tMgr.fogFlows[fID] = &fogflow
-	DEBUG.Printf("~~~~~~~ add new flow %+s, %+v ~~~~~~~~~~~~~~~~~\r\n", fID, tMgr.fogFlows)
 	tMgr.fogFlows_lock.Unlock()
 }
 
 func (tMgr *TaskMgr) removeTaskIntent(taskIntent *TaskIntent) {
-	INFO.Println("remove the task intent: ", taskIntent)
-
 	fID := taskIntent.TopologyName + "." + taskIntent.TaskObject.Name
 
 	// remove all related subscriptions to IoT Discovery
@@ -859,7 +850,7 @@ func (tMgr *TaskMgr) selector2Subscription(inputSelector *InputStreamConfig, geo
 		availabilitySubscription.Restriction.Scopes = append(availabilitySubscription.Restriction.Scopes, geoscope)
 	}
 
-	DEBUG.Printf("issue NGSI9 subscription: %+v\r\n", availabilitySubscription)
+	INFO.Println("[NGSI9 subscription]: ", availabilitySubscription)
 
 	// issue the constructed subscription to IoT Discovery
 	subscriptionId := tMgr.master.subscribeContextAvailability(&availabilitySubscription)
@@ -870,7 +861,7 @@ func (tMgr *TaskMgr) selector2Subscription(inputSelector *InputStreamConfig, geo
 // the main function to deal with data-driven and context aware task orchestration
 //
 func (tMgr *TaskMgr) HandleContextAvailabilityUpdate(subID string, entityAction string, entityRegistration *EntityRegistration) {
-	INFO.Printf("received registration: %+v\r\n", entityRegistration)
+	INFO.Println("[Registration update]: ", subID, entityAction, entityRegistration.ID)
 
 	tMgr.subID2FogFunc_lock.RLock()
 	funcName, fogFunctionExist := tMgr.subID2FogFunc[subID]
@@ -900,7 +891,7 @@ func (tMgr *TaskMgr) HandleContextAvailabilityUpdate(subID string, entityAction 
 
 	// schedule and send out the deployment actions
 	for _, deploymentAction := range deploymentActions {
-		DEBUG.Println("[%s] %+v\r\n", deploymentAction.ActionType, deploymentAction.ActionInfo)
+		DEBUG.Println("[Orchestration Action]: ", deploymentAction.ActionType, deploymentAction.ActionInfo)
 
 		switch deploymentAction.ActionType {
 		case "ADD_TASK":

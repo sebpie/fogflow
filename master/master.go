@@ -140,7 +140,8 @@ func (master *Master) onTimer() {
 	// check the liveness of each worker
 	master.workerList_lock.Lock()
 	for workerID, worker := range master.workers {
-		if worker.IsLive(master.cfg.Worker.HeartbeatInterval*6) == false {
+		duration := master.cfg.Worker.HeartbeatInterval * master.cfg.Worker.DetectionDuration
+		if worker.IsLive(duration) == false {
 			delete(master.workers, workerID)
 			INFO.Println("REMOVE worker " + workerID + " from the list")
 		}
@@ -192,7 +193,6 @@ func (master *Master) prefetchDockerImages(image DockerImage) {
 }
 
 func (master *Master) onReceiveContextAvailability(notifyCtxAvailReq *NotifyContextAvailabilityRequest) {
-	INFO.Println("===========RECEIVE CONTEXT AVAILABILITY: ", notifyCtxAvailReq)
 	subID := notifyCtxAvailReq.SubscriptionId
 
 	var action string
@@ -221,6 +221,47 @@ func (master *Master) contextRegistration2EntityRegistration(entityId *EntityId,
 	if ctxObj == nil {
 		entityRegistration.ID = entityId.ID
 		entityRegistration.Type = entityId.Type
+
+		entityRegistration.AttributesList = make(map[string]ContextRegistrationAttribute)
+		entityRegistration.MetadataList = make(map[string]ContextMetadata)
+	} else {
+		entityRegistration.ID = ctxObj.Entity.ID
+		entityRegistration.Type = ctxObj.Entity.Type
+
+		entityRegistration.AttributesList = make(map[string]ContextRegistrationAttribute)
+		for attrName, attrValue := range ctxObj.Attributes {
+			attributeRegistration := ContextRegistrationAttribute{}
+			attributeRegistration.Name = attrName
+			attributeRegistration.Type = attrValue.Type
+			entityRegistration.AttributesList[attrName] = attributeRegistration
+		}
+
+		entityRegistration.MetadataList = make(map[string]ContextMetadata)
+		for metaname, ctxmeta := range ctxObj.Metadata {
+			cm := ContextMetadata{}
+			cm.Name = metaname
+			cm.Type = ctxmeta.Type
+			cm.Value = ctxmeta.Value
+
+			entityRegistration.MetadataList[metaname] = cm
+		}
+	}
+
+	entityRegistration.ProvidingApplication = ctxRegistration.ProvidingApplication
+
+	return &entityRegistration
+}
+
+func (master *Master) contextRegistration2EntityRegistration_tbd(entityId *EntityId, ctxRegistration *ContextRegistration) *EntityRegistration {
+	entityRegistration := EntityRegistration{}
+
+	ctxObj := master.RetrieveContextEntity(entityId.ID)
+	if ctxObj == nil {
+		entityRegistration.ID = entityId.ID
+		entityRegistration.Type = entityId.Type
+
+		entityRegistration.AttributesList = make(map[string]ContextRegistrationAttribute)
+		entityRegistration.MetadataList = make(map[string]ContextMetadata)
 	} else {
 		entityRegistration.ID = ctxObj.Entity.ID
 		entityRegistration.Type = ctxObj.Entity.Type
@@ -320,11 +361,13 @@ func (master *Master) onHeartbeat(from string, profile *WorkerProfile) {
 	workerID := profile.WID
 	if worker, exist := master.workers[workerID]; exist {
 		worker.Capacity = profile.Capacity
+		worker.Workload = profile.Workload
 		worker.Last_Heartbeat_Update = time.Now()
 	} else {
 		profile.Workload = 0
 		profile.Last_Heartbeat_Update = time.Now()
 		master.workers[workerID] = profile
+		INFO.Println("ADD worker ", workerID, " into the list")
 	}
 
 	master.workerList_lock.Unlock()
@@ -341,6 +384,7 @@ func (master *Master) onWorkerJoin(from string, profile *WorkerProfile) {
 		profile.Workload = 0
 		profile.Last_Heartbeat_Update = time.Now()
 		master.workers[workerID] = profile
+		INFO.Println("[JOIN] worker ", workerID, " into the list")
 	}
 
 	master.workerList_lock.Unlock()
@@ -352,14 +396,14 @@ func (master *Master) onWorkerLeave(from string, profile *WorkerProfile) {
 	workerID := profile.WID
 	if _, exist := master.workers[workerID]; exist {
 		delete(master.workers, workerID)
+		INFO.Println("[LEAVE] worker ", workerID, " into the list")
 	}
 
 	master.workerList_lock.Unlock()
 }
 
 func (master *Master) onTaskUpdate(from string, update *TaskUpdate) {
-	INFO.Println("==task update=========")
-	INFO.Println(update)
+	INFO.Println("[Task update]: ", update)
 }
 
 func (master *Master) DeployTask(taskInstance *ScheduledTaskInstance) {
@@ -469,8 +513,6 @@ func (master *Master) SelectWorker(locations []Point) string {
 	closestWorkerID := ""
 	closestTotalDistance := uint64(math.MaxUint64)
 	for _, worker := range master.workers {
-		INFO.Printf("check worker %+v\r\n", worker)
-
 		// if this worker is already overloaded, check the next one
 		if worker.IsOverloaded() == true {
 			continue
@@ -489,15 +531,12 @@ func (master *Master) SelectWorker(locations []Point) string {
 
 			distance := Distance(&wp, &location)
 			totalDistance += distance
-			INFO.Printf("distance = %d between %+v, %+v\r\n", distance, wp, location)
 		}
 
 		if totalDistance < closestTotalDistance {
 			closestWorkerID = worker.WID
 			closestTotalDistance = totalDistance
 		}
-
-		INFO.Println("closest worker ", closestWorkerID, " with the closest distance ", closestTotalDistance)
 	}
 
 	return closestWorkerID
@@ -528,7 +567,6 @@ func (master *Master) getTopologyByName(name string) *Topology {
 	defer resp.Body.Close()
 
 	body, _ := ioutil.ReadAll(resp.Body)
-	INFO.Println("response Body:", string(body))
 
 	topology := Topology{}
 	jsonErr := json.Unmarshal(body, &topology)
@@ -551,8 +589,6 @@ func (master *Master) getTopologyByName(name string) *Topology {
 // to select the right docker image of an operator for the selected worker
 //
 func (master *Master) DetermineDockerImage(operatorName string, wID string) string {
-	INFO.Println("select a suitable image to execute on the selected worker")
-
 	master.workerList_lock.RLock()
 	wProfile := master.workers[wID]
 	master.workerList_lock.RUnlock()
@@ -573,9 +609,6 @@ func (master *Master) DetermineDockerImage(operatorName string, wID string) stri
 	dockerimages := operator.DockerImages
 
 	for _, image := range dockerimages {
-		fmt.Println("*****image*******", image)
-		DEBUG.Println(wProfile)
-
 		hwType := "X86"
 		osType := "Linux"
 
@@ -592,8 +625,6 @@ func (master *Master) DetermineDockerImage(operatorName string, wID string) stri
 			break
 		}
 	}
-
-	DEBUG.Println(selectedDockerImageName)
 
 	return selectedDockerImageName
 }

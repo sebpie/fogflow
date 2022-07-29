@@ -25,8 +25,9 @@
     "worker": {
         "container_autoremove": false,
         "start_actual_task": true,
-        "capacity": 8,
-        "heartbeat_interval": 30                  
+        "capacity": 100,
+        "heartbeat_interval": 30,
+        "detection_duration": 10
     },
     "designer": {
         "webSrvPort": 8080,

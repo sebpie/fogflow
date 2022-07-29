@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"math"
@@ -127,6 +128,23 @@ type ContextMetadata struct {
 	Type       string      `json:"type,omitempty"`
 	Value      interface{} `json:"value"`
 	Cordinates interface{} `json:"coordinates,omitempty"`
+}
+
+func (metadata *ContextMetadata) ReadGeoJSON(geojson map[string]interface{}) {
+	fmt.Println(geojson)
+
+	locationType := geojson["type"].(string)
+	switch strings.ToLower(locationType) {
+	case "point":
+		coordinates := geojson["coordinates"].([]interface{})
+		metadata.Type = "point"
+
+		point := Point{}
+		point.Longitude = coordinates[0].(float64)
+		point.Latitude = coordinates[1].(float64)
+
+		metadata.Value = point
+	}
 }
 
 /*
@@ -313,9 +331,6 @@ type EntityId struct {
 	Type      string `json:"type,omitempty"`
 	IsPattern bool   `json:"isPattern,omitempty"`
 	ID        string `json:"id"`
-	// IdPattern         string `json:"idPattern,omitempty"`
-	// FiwareServicePath string `json:"fiwareServicePath,omitempty"`
-	// MsgFormat         string `json:"magFormat,omitempty"`
 }
 
 type Conditions struct {
@@ -435,8 +450,13 @@ func (ce *ContextElement) ReadFromNGSILD(ngsildEntity map[string]interface{}) bo
 			if strings.ToLower(k) == "location" {
 				domainMetadata := ContextMetadata{}
 				domainMetadata.Name = k
-				domainMetadata.Type = attrType
-				domainMetadata.Value = attrValue
+
+				if strings.ToLower(attrType) == "geoproperty" {
+					domainMetadata.ReadGeoJSON(attrValue.(map[string]interface{}))
+				} else {
+					domainMetadata.Type = attrType
+					domainMetadata.Value = attrValue
+				}
 
 				ce.Metadata = append(ce.Metadata, domainMetadata)
 			}
@@ -782,9 +802,6 @@ type EntityRegistration struct {
 	AttributesList       map[string]ContextRegistrationAttribute
 	MetadataList         map[string]ContextMetadata
 	ProvidingApplication string
-	// FiwareServicePath    string
-	// MsgFormat            string
-	// FiwareService        string
 }
 
 func (registredEntity *EntityRegistration) GetLocation() Point {
@@ -885,7 +902,6 @@ type Subscriber struct {
 	RequireReliability bool
 	BrokerURL          string
 	NotifyCache        []*ContextElement
-	LDNotifyCache      []map[string]interface{}
 	DestinationType    string
 	Tenant             string
 	Correlator         string
@@ -1031,7 +1047,6 @@ type SubscribeContextAvailabilityRequest struct {
 	Duration       string      `json:"duration,omitempty"`
 	Restriction    Restriction `json:"restriction,omitempty"`
 	SubscriptionId string      `json:"subscriptionId,omitempty"`
-	FiwareService  string
 }
 
 type Subscribev2ContextAvailabilityRequest struct {
@@ -1191,6 +1206,7 @@ type ConfigCommand struct {
 	InputEntityType string `json:"type"`
 	InputEntityId   string `json:"id"`
 	ReferenceURL    string `json:"url"`
+	CorrelatorID    string `json:"correlatorID"`
 }
 
 //To handle RegisterContextRequest coming from IoT Agent
