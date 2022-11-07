@@ -19,4 +19,11 @@ if [ $# -gt 0 ]; then
     docker push fogflow/master:${VERSION}
     docker push fogflow/worker:${VERSION}
     docker push fogflow/designer:${VERSION}
+
+    # publish the arm version for both worker and broker
+    docker image tag fogflow/worker:arm fogflow/worker_arm:${VERSION}
+    docker image tag fogflow/broker:arm fogflow/broker_arm:${VERSION}
+
+    docker push fogflow/worker_arm:${VERSION}
+    docker push fogflow/broker_arm:${VERSION}
 fi
