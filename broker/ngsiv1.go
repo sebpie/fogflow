@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/google/uuid"
@@ -132,6 +133,8 @@ func (tb *ThinBroker) NGSIV1_SubscribeContext(w rest.ResponseWriter, r *rest.Req
 	}
 	subID := u1.String()
 
+	subReq.Reference = strings.TrimSpace(subReq.Reference)
+
 	// send out the response
 	subResp := SubscribeContextResponse{}
 	subResp.SubscribeResponse.SubscriptionId = subID
@@ -145,7 +148,7 @@ func (tb *ThinBroker) NGSIV1_SubscribeContext(w rest.ResponseWriter, r *rest.Req
 	subReq.Subscriber.Tenant = r.Header.Get("Ngsild-Tenant")
 	subReq.Subscriber.Correlator = r.Header.Get("Fiware-Correlator")
 
-	DEBUG.Println(subReq.Subscriber)
+	// DEBUG.Println(subReq.Subscriber)
 
 	if r.Header.Get("User-Agent") == "lightweight-iot-broker" {
 		subReq.Subscriber.IsInternal = true

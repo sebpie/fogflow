@@ -323,6 +323,9 @@ func (tb *ThinBroker) fetchEntities(ids []EntityId, providerURL string) []Contex
 // handle context updates from external applications/devices
 
 func (tb *ThinBroker) handleInternalUpdateContext(updateCtxReq *UpdateContextRequest) {
+
+	// DEBUG.Println("updateCtxReq", updateCtxReq)
+
 	switch strings.ToUpper(updateCtxReq.UpdateAction) {
 	case "UPDATE":
 		for _, ctxElem := range updateCtxReq.ContextElements {
@@ -388,6 +391,9 @@ func (tb *ThinBroker) queryOwnerOfEntity(eid string) string {
 }
 
 func (tb *ThinBroker) UpdateContext2LocalSite(ctxElem *ContextElement, correlator string, params ...rest.ResponseWriter) {
+
+	// DEBUG.Println("elements", ctxElem)
+
 	// register the entity if there is any changes on attribute list, domain metadata
 	tb.entities_lock.Lock()
 	eid := ctxElem.Entity.ID
@@ -402,13 +408,13 @@ func (tb *ThinBroker) UpdateContext2LocalSite(ctxElem *ContextElement, correlato
 	tb.updateContextElement(ctxElem)
 
 	// propogate this update to its subscribers
-	go tb.notifySubscribers(ctxElem, correlator, true)
+	tb.notifySubscribers(ctxElem, correlator, true)
 }
 
 func (tb *ThinBroker) UpdateContext2RemoteSite(ctxElem *ContextElement, updateAction string, brokerURL string) {
 	switch updateAction {
 	case "UPDATE":
-		INFO.Println(brokerURL)
+		// INFO.Println(brokerURL)
 		client := NGSI10Client{IoTBrokerURL: brokerURL, SecurityCfg: tb.SecurityCfg}
 		client.UpdateContext(ctxElem)
 
@@ -421,7 +427,7 @@ func (tb *ThinBroker) UpdateContext2RemoteSite(ctxElem *ContextElement, updateAc
 func (tb *ThinBroker) notifySubscribers(ctxElem *ContextElement, correlator string, checkSelectedAttributes bool) {
 	eid := ctxElem.Entity.ID
 
-	//DEBUG.Println(ctxElem)
+	// DEBUG.Println("elements", ctxElem)
 
 	tb.e2sub_lock.RLock()
 	defer tb.e2sub_lock.RUnlock()
@@ -468,6 +474,7 @@ func (tb *ThinBroker) notifySubscribers(ctxElem *ContextElement, correlator stri
 			elements = append(elements, *ctxElem)
 		}
 
+		// DEBUG.Println("elements", elements)
 		go tb.sendReliableNotify(elements, sid)
 	}
 }
@@ -535,11 +542,13 @@ func (tb *ThinBroker) sendReliableNotifyToSubscriber(elements []ContextElement, 
 	}
 	tb.subscriptions_lock.Unlock()
 
-	INFO.Println("NOTIFY: ", len(elements), ", ", sid, ", ", subscriberURL, ", ", DestinationBroker)
+	//INFO.Println("NOTIFY: ", len(elements), ", ", sid, ", ", subscriberURL, ", ", DestinationBroker)
+	// DEBUG.Println(elements)
 
 	err := postNotifyContext(elements, sid, subscriberURL, DestinationBroker, Tenant, tb.SecurityCfg)
+
 	if err != nil {
-		INFO.Println("NOTIFY is not received by the subscriber, ", subscriberURL)
+		DEBUG.Println("NOTIFY is not received by the subscriber, ", subscriberURL)
 
 		tb.subscriptions_lock.Lock()
 		if subscription, exist := tb.subscriptions[sid]; exist {
@@ -561,6 +570,7 @@ func (tb *ThinBroker) sendReliableNotifyToSubscriber(elements []ContextElement, 
 */
 
 func (tb *ThinBroker) sendReliableNotify(elements []ContextElement, sid string) {
+	// DEBUG.Println(elements)
 	tb.subscriptions_lock.Lock()
 	_, ok := tb.subscriptions[sid]
 	if ok == true {
@@ -683,9 +693,9 @@ func (tb *ThinBroker) handleNGSI9Notify(mainSubID string, notifyContextAvailabil
 			tb.e2sub_lock.Unlock()
 		}
 
-		INFO.Println(registration.ProvidingApplication, ", ", tb.MyURL)
-		INFO.Println("TO ngsi10 subscription, ", mainSubID)
-		INFO.Printf("entity list: %+v\r\n", registration.EntityIdList)
+		// INFO.Println(registration.ProvidingApplication, ", ", tb.MyURL)
+		// INFO.Println("TO ngsi10 subscription, ", mainSubID)
+		// INFO.Printf("entity list: %+v\r\n", registration.EntityIdList)
 
 		if registration.ProvidingApplication == tb.MyURL {
 			//for matched entities provided by myself
@@ -702,7 +712,7 @@ func (tb *ThinBroker) handleNGSI9Notify(mainSubID string, notifyContextAvailabil
 			if action == "CREATE" || action == "UPDATE" {
 				sid, err := subscribeContextProvider(&newSubscription, registration.ProvidingApplication, tb.SecurityCfg)
 				if err == nil {
-					INFO.Println("issue a new subscription ", sid)
+					// INFO.Println("issue a new subscription ", sid)
 
 					tb.subscriptions_lock.Lock()
 					tb.subscriptions[sid] = &newSubscription

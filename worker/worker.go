@@ -48,6 +48,8 @@ func (w *Worker) Start(config *Config) bool {
 
 	w.selectedBrokerURL = config.GetBrokerURL()
 
+	//INFO.Printf("InfiniteReconnectionTries: %v", config.Worker.InfiniteReconnectionTries)
+
 	// start the executor to interact with docker
 	w.executor = &Executor{}
 	if w.executor.Init(w.cfg, w.selectedBrokerURL, w) == false {
@@ -64,14 +66,18 @@ func (w *Worker) Start(config *Config) bool {
 		for {
 			retry, err := w.communicator.StartConsuming(w.id, w)
 			if retry {
-				ERROR.Printf("Going to retry launching the edge node. Error: %v", err)
+				ERROR.Printf("Going to retry launching the edge node in 5 seconds. Error: %v", err)
+				time.Sleep(5 * time.Second)
 				numConnectionFailure += 1
-				if numConnectionFailure > 10 {
+				if numConnectionFailure%5 == 0 {
+					INFO.Println("Re-initialize the communicator")
+					w.communicator = NewCommunicator(&cfg)
+				}
+				if !config.Worker.InfiniteReconnectionTries && numConnectionFailure > 10 {
 					ERROR.Printf("break out after 10 failures, Error: %v", err)
 					break
-				} else {
-					INFO.Println("number of connection failure to RabbitMQ: ", numConnectionFailure)
 				}
+				INFO.Println("number of connection failure to RabbitMQ: ", numConnectionFailure)
 			} else {
 				ERROR.Printf("break out, Error: %v", err)
 				break

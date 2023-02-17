@@ -110,14 +110,21 @@ func (master *Master) Start(configuration *Config) {
 		for {
 			retry, err := master.communicator.StartConsuming(master.id, master)
 			if retry {
-				ERROR.Printf("Going to retry launching the rabbitmq. Error:", err)
+				ERROR.Printf("Going to retry launching the edge node in 5 seconds. Error: %v", err)
+				time.Sleep(5 * time.Second)
 				numConnectionFailure += 1
-				if numConnectionFailure > 10 {
-					ERROR.Printf("break out after 10 failures, Error:", err)
+				if numConnectionFailure%5 == 0 {
+					INFO.Println("Re-initialize the communicator")
+					master.communicator = NewCommunicator(&cfg)
+				}
+				// Just stop the execution after try 10 times unless it is asked to continue trying
+				if !configuration.Worker.InfiniteReconnectionTries && numConnectionFailure > 10 {
+					ERROR.Printf("break out after 10 failures, Error: %v", err)
 					break
 				}
+				INFO.Println("number of connection failure to RabbitMQ: ", numConnectionFailure)
 			} else {
-				ERROR.Printf("stop retrying, Error: ", err)
+				ERROR.Printf("stop retrying, Error: %v", err)
 				break
 			}
 		}
