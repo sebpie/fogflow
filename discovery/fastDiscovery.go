@@ -45,6 +45,18 @@ type FastDiscovery struct {
 	//cache
 	notifyCache []*CacheItem
 	cache_lock  sync.RWMutex
+
+	// Configure store on disk
+	delayStoreOnFile int
+	storeOnDisk      bool
+
+	// lock to control the update subscriptions in database
+	subscriptionsDbLock               sync.RWMutex
+	storeSubscriptionsOnFileScheduled bool
+
+	// lock to control the update brokers in database
+	brokersDbLock               sync.RWMutex
+	storeBrokersOnFileScheduled bool
 }
 
 func (fd *FastDiscovery) Init(config *Config) {
@@ -55,7 +67,18 @@ func (fd *FastDiscovery) Init(config *Config) {
 	fd.cfg = config
 	fd.SecurityCfg = &config.HTTPS
 
-	fd.repository.Init()
+	fd.storeSubscriptionsOnFileScheduled = false
+	fd.storeBrokersOnFileScheduled = false
+	fd.storeOnDisk = config.Discovery.StoreOnDisk
+	//INFO.Println("config.Discovery.DelayStoreRegistrationsOnFile ", config.Discovery.DelayStoreStoreOnFile)
+	fd.delayStoreOnFile = config.Discovery.DelayStoreOnFile
+
+	if fd.storeOnDisk {
+		fd.readSubscriptionsFromDisk()
+		fd.readBrokersFromDisk()
+	}
+
+	fd.repository.Init(config)
 }
 
 func (fd *FastDiscovery) Stop() {
@@ -153,6 +176,10 @@ func (fd *FastDiscovery) deleteRegistration(eid string) {
 		fd.broker_list_lock.Lock()
 		delete(fd.BrokerList, brokerID)
 		fd.broker_list_lock.Unlock()
+
+		if fd.storeOnDisk {
+			go fd.updateBrokersOnDisk()
+		}
 	}
 
 	fd.repository.deleteEntity(eid)
@@ -231,6 +258,10 @@ func (fd *FastDiscovery) SubscribeContextAvailability(w rest.ResponseWriter, r *
 
 	fd.subscriptions_lock.Unlock()
 
+	if fd.storeOnDisk {
+		go fd.updateSubscriptionsOnDisk()
+	}
+
 	// send out the response
 	subscribeCtxAvailabilityResp := SubscribeContextAvailabilityResponse{}
 	subscribeCtxAvailabilityResp.SubscriptionId = subID
@@ -261,6 +292,10 @@ func (fd *FastDiscovery) UpdateLDContextAvailability(w rest.ResponseWriter, r *r
 		fd.subscriptions[subID] = &subscribeCtxAvailabilityReq
 	}
 	fd.subscriptions_lock.Unlock()
+
+	if fd.storeOnDisk {
+		go fd.updateSubscriptionsOnDisk()
+	}
 
 	// send out the response
 	subscribeCtxAvailabilityResp := SubscribeContextAvailabilityResponse{}
@@ -423,6 +458,10 @@ func (fd *FastDiscovery) UnsubscribeContextAvailability(w rest.ResponseWriter, r
 	delete(fd.subscriptions, subID)
 	fd.subscriptions_lock.Unlock()
 
+	if fd.storeOnDisk {
+		go fd.updateSubscriptionsOnDisk()
+	}
+
 	// send out the response
 	unsubscribeCtxAvailabilityResp := UnsubscribeContextAvailabilityResponse{}
 	unsubscribeCtxAvailabilityResp.SubscriptionId = unsubscribeCtxAvailabilityReq.SubscriptionId
@@ -516,7 +555,12 @@ func (fd *FastDiscovery) onBrokerHeartbeat(w rest.ResponseWriter, r *rest.Reques
 	} else {
 		brokerProfile.Last_Heartbeat_Update = time.Now()
 		fd.BrokerList[brokerProfile.BID] = &brokerProfile
+
+		if fd.storeOnDisk {
+			go fd.updateBrokersOnDisk()
+		}
 	}
+
 }
 
 func (fd *FastDiscovery) checkBrokerList() {
@@ -527,6 +571,135 @@ func (fd *FastDiscovery) checkBrokerList() {
 		if brokerProfile.IsLive(fd.cfg.Broker.HeartbeatInterval*6) == false {
 			delete(fd.BrokerList, brokerID)
 			INFO.Println("REMOVE broker " + brokerID + " from the list")
+			if fd.storeOnDisk {
+				go fd.updateBrokersOnDisk()
+			}
 		}
+	}
+}
+
+func (fd *FastDiscovery) updateSubscriptionsOnDisk() {
+
+	// This initial code is to avoid to write on file for every new subscriptions if
+	// they are arriving too close with each other in terms of time
+	// So here we check if the dblock was already taken without trying to take it
+	// if it is already taken then just return because the new subscription will be written
+	// by the already scheduled write to file
+	// If the lock is not taken, then take it and wait for 3 seconds.
+	// Then for the next 3 seconds other pursuer of storing on file will see that
+	// somebody has the lock
+
+	if fd.storeSubscriptionsOnFileScheduled {
+		INFO.Println("A store on file for registrations is already scheduled")
+		return
+	}
+
+	fd.subscriptionsDbLock.Lock()
+
+	fd.storeSubscriptionsOnFileScheduled = true
+
+	time.Sleep(time.Duration(fd.delayStoreOnFile) * time.Second)
+
+	fd.subscriptions_lock.RLock()
+
+	INFO.Println("Writing subscriptions into file")
+
+	defer fd.subscriptions_lock.RUnlock()
+	defer fd.subscriptionsDbLock.Unlock()
+
+	//...................................
+	//Writing struct type to a JSON file
+	//...................................
+	content, err := json.Marshal(fd.subscriptions)
+	if err != nil {
+		ERROR.Println(err)
+	}
+	err = ioutil.WriteFile("subscriptions.json", content, 0644)
+	if err != nil {
+		ERROR.Println(err)
+	}
+
+	fd.storeSubscriptionsOnFileScheduled = false
+
+}
+
+func (fd *FastDiscovery) readSubscriptionsFromDisk() {
+
+	INFO.Println("Reading subscriptions from file")
+
+	fd.subscriptionsDbLock.Lock()
+	defer fd.subscriptionsDbLock.Unlock()
+
+	content, err := ioutil.ReadFile("subscriptions.json")
+	if err != nil {
+		ERROR.Println(err)
+	}
+
+	err = json.Unmarshal(content, &fd.subscriptions)
+	if err != nil {
+		ERROR.Println(err)
+	}
+}
+
+func (fd *FastDiscovery) updateBrokersOnDisk() {
+
+	// This initial code is to avoid to write on file for every new subscriptions if
+	// they are arriving too close with each other in terms of time
+	// So here we check if the dblock was already taken without trying to take it
+	// if it is already taken then just return because the new subscription will be written
+	// by the already scheduled write to file
+	// If the lock is not taken, then take it and wait for 3 seconds.
+	// Then for the next 3 seconds other pursuer of storing on file will see that
+	// somebody has the lock
+
+	if fd.storeBrokersOnFileScheduled {
+		INFO.Println("A store on file for registrations is already scheduled")
+		return
+	}
+
+	fd.brokersDbLock.Lock()
+
+	fd.storeBrokersOnFileScheduled = true
+
+	time.Sleep(time.Duration(fd.delayStoreOnFile) * time.Second)
+
+	fd.broker_list_lock.RLock()
+
+	INFO.Println("Writing brokers into file")
+
+	defer fd.broker_list_lock.RUnlock()
+	defer fd.brokersDbLock.Unlock()
+
+	//...................................
+	//Writing struct type to a JSON file
+	//...................................
+	content, err := json.Marshal(fd.BrokerList)
+	if err != nil {
+		ERROR.Println(err)
+	}
+	err = ioutil.WriteFile("brokers.json", content, 0644)
+	if err != nil {
+		ERROR.Println(err)
+	}
+
+	fd.storeBrokersOnFileScheduled = false
+
+}
+
+func (fd *FastDiscovery) readBrokersFromDisk() {
+
+	INFO.Println("Reading brokers from file")
+
+	fd.brokersDbLock.Lock()
+	defer fd.brokersDbLock.Unlock()
+
+	content, err := ioutil.ReadFile("brokers.json")
+	if err != nil {
+		ERROR.Println(err)
+	}
+
+	err = json.Unmarshal(content, &fd.BrokerList)
+	if err != nil {
+		ERROR.Println(err)
 	}
 }

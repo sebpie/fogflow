@@ -1,9 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	. "fogflow/common/config"
 	. "fogflow/common/ngsi"
+	"io/ioutil"
 	"sort"
 	"sync"
+	"time"
 )
 
 type Candidate struct {
@@ -20,12 +24,24 @@ type EntityRepository struct {
 	ctxRegistrationList_lock sync.RWMutex
 
 	// lock to control the update of database
-	dbLock sync.RWMutex
+	dbLock                        sync.RWMutex
+	storeToFileScheduled          bool
+	delayStoreRegistrationsOnFile int
+	registrationsOnDisk           bool
 }
 
-func (er *EntityRepository) Init() {
+func (er *EntityRepository) Init(config *Config) {
 	// initialize the registration list
 	er.ctxRegistrationList = make(map[string]*EntityRegistration)
+
+	er.storeToFileScheduled = false
+	er.registrationsOnDisk = config.Discovery.StoreOnDisk
+	//INFO.Println("config.Discovery.DelayStoreRegistrationsOnFile ", config.Discovery.DelayStoreStoreOnFile)
+	er.delayStoreRegistrationsOnFile = config.Discovery.DelayStoreOnFile
+
+	if er.registrationsOnDisk {
+		er.readRegistrationsFromDisk()
+	}
 }
 
 //
@@ -34,6 +50,11 @@ func (er *EntityRepository) Init() {
 //
 func (er *EntityRepository) updateEntity(entity EntityId, registration *ContextRegistration) *EntityRegistration {
 	updatedRegistration := er.updateRegistrationInMemory(entity, registration)
+
+	// If requested, update registrations on disk
+	if er.registrationsOnDisk {
+		er.updateRegistrationsOnDisk()
+	}
 
 	// return the latest view of the registration for this entity
 	return updatedRegistration
@@ -194,6 +215,12 @@ func (er *EntityRepository) deleteEntity(eid string) {
 	er.ctxRegistrationList_lock.Lock()
 	delete(er.ctxRegistrationList, eid)
 	er.ctxRegistrationList_lock.Unlock()
+
+	// If requested, update registrations on disk
+	if er.registrationsOnDisk {
+		er.updateRegistrationsOnDisk()
+	}
+
 }
 
 func (er *EntityRepository) ProviderLeft(providerURL string) {
@@ -204,6 +231,11 @@ func (er *EntityRepository) ProviderLeft(providerURL string) {
 		}
 	}
 	er.ctxRegistrationList_lock.Unlock()
+
+	// If requested, update registrations on disk
+	if er.registrationsOnDisk {
+		er.updateRegistrationsOnDisk()
+	}
 }
 
 func (er *EntityRepository) retrieveRegistration(entityID string) *EntityRegistration {
@@ -211,4 +243,67 @@ func (er *EntityRepository) retrieveRegistration(entityID string) *EntityRegistr
 	defer er.ctxRegistrationList_lock.RUnlock()
 
 	return er.ctxRegistrationList[entityID]
+}
+
+func (er *EntityRepository) updateRegistrationsOnDisk() {
+
+	// This initial code is to avoid to write on file for every new subscriptions if
+	// they are arriving too close with each other in terms of time
+	// So here we check if the dblock was already taken without trying to take it
+	// if it is already taken then just return because the new subscription will be written
+	// by the already scheduled write to file
+	// If the lock is not taken, then take it and wait for 3 seconds.
+	// Then for the next 3 seconds other pursuer of storing on file will see that
+	// somebody has the lock
+
+	if er.storeToFileScheduled {
+		INFO.Println("A store on file for registrations is already scheduled")
+		return
+	}
+
+	er.dbLock.Lock()
+
+	er.storeToFileScheduled = true
+
+	time.Sleep(time.Duration(er.delayStoreRegistrationsOnFile) * time.Second)
+
+	er.ctxRegistrationList_lock.RLock()
+
+	INFO.Println("Writing registration into file")
+
+	defer er.ctxRegistrationList_lock.RUnlock()
+	defer er.dbLock.Unlock()
+
+	//...................................
+	//Writing struct type to a JSON file
+	//...................................
+	content, err := json.Marshal(er.ctxRegistrationList)
+	if err != nil {
+		ERROR.Println(err)
+	}
+	err = ioutil.WriteFile("registrations.json", content, 0644)
+	if err != nil {
+		ERROR.Println(err)
+	}
+
+	er.storeToFileScheduled = false
+
+}
+
+func (er *EntityRepository) readRegistrationsFromDisk() {
+
+	INFO.Println("Reading registrations from file")
+
+	er.dbLock.Lock()
+	defer er.dbLock.Unlock()
+
+	content, err := ioutil.ReadFile("registrations.json")
+	if err != nil {
+		ERROR.Println(err)
+	}
+
+	err = json.Unmarshal(content, &er.ctxRegistrationList)
+	if err != nil {
+		ERROR.Println(err)
+	}
 }

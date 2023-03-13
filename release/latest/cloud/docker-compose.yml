@@ -19,6 +19,9 @@ services:
         image: fogflow/discovery:latest
         volumes:
             - ./config.json:/config.json                        
+            - ./discoveryDB/registrations.json:/registrations.json                        
+            - ./discoveryDB/brokers.json:/brokers.json                        
+            - ./discoveryDB/subscriptions.json:/subscriptions.json                        
         ports:
             - 8090:8090
         restart: always
@@ -31,6 +34,7 @@ services:
             - rabbitmq        
         ports:
             - 1060:1060 
+            - 8010:8010 
         depends_on: 
             - rabbitmq
             - discovery

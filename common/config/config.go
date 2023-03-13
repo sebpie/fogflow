@@ -52,9 +52,11 @@ type Config struct {
 		Debug    string `json:"debug"`
 	} `json:"logging"`
 	Discovery struct {
-		HostIP    string `json:"host_ip"`
-		HTTPPort  int    `json:"http_port"`
-		HTTPSPort int    `json:"https_port"`
+		HostIP           string `json:"host_ip"`
+		HTTPPort         int    `json:"http_port"`
+		HTTPSPort        int    `json:"https_port"`
+		StoreOnDisk      bool   `json:"storeOnDisk"`
+		DelayStoreOnFile int    `json:"delayStoreOnFile"`
 	} `json:"discovery"`
 	Broker struct {
 		HostIP            string `json:"host_ip"`

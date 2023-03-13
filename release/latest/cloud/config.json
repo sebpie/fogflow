@@ -12,7 +12,9 @@
         "debug": "stdout"
     },
     "discovery": {
-        "http_port": 8090
+        "http_port": 8090,
+        "storeOnDisk": false,
+        "delayStoreOnFile" : 3
     },
     "broker": {
         "http_port": 8070,

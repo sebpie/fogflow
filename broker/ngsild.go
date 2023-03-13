@@ -46,7 +46,7 @@ func (tb *ThinBroker) NGSILD_CreateEntity(w rest.ResponseWriter, r *rest.Request
 	updateCtxReq := UpdateContextRequest{}
 	numUpdates := updateCtxReq.ReadFromNGSILD(ngsildUpsert)
 
-	DEBUG.Println(updateCtxReq)
+	// DEBUG.Println(updateCtxReq)
 
 	if numUpdates > 0 {
 		tb.handleInternalUpdateContext(&updateCtxReq)

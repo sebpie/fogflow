@@ -120,6 +120,8 @@ func (tb *ThinBroker) NGSIV1_SubscribeContext(w rest.ResponseWriter, r *rest.Req
 	subReq := SubscribeContextRequest{}
 	subReq.Attributes = make([]string, 0)
 
+	DEBUG.Println("Subscription request from: ", r.RemoteAddr)
+
 	err := r.DecodeJsonPayload(&subReq)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
@@ -141,7 +143,7 @@ func (tb *ThinBroker) NGSIV1_SubscribeContext(w rest.ResponseWriter, r *rest.Req
 	subResp.SubscribeError.SubscriptionId = subID
 	w.WriteJson(&subResp)
 
-	INFO.Println(r.Header)
+	// INFO.Println(r.Header)
 
 	// check the request header
 	subReq.Subscriber.DestinationType = r.Header.Get("Destination")
