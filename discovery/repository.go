@@ -28,6 +28,8 @@ type EntityRepository struct {
 	storeToFileScheduled          bool
 	delayStoreRegistrationsOnFile int
 	registrationsOnDisk           bool
+
+	dbFile string
 }
 
 func (er *EntityRepository) Init(config *Config) {
@@ -38,6 +40,8 @@ func (er *EntityRepository) Init(config *Config) {
 	er.registrationsOnDisk = config.Discovery.StoreOnDisk
 	//INFO.Println("config.Discovery.DelayStoreRegistrationsOnFile ", config.Discovery.DelayStoreStoreOnFile)
 	er.delayStoreRegistrationsOnFile = config.Discovery.DelayStoreOnFile
+
+	er.dbFile = "discoveryDB/registrations.json"
 
 	if er.registrationsOnDisk {
 		er.readRegistrationsFromDisk()
@@ -281,7 +285,8 @@ func (er *EntityRepository) updateRegistrationsOnDisk() {
 	if err != nil {
 		ERROR.Println(err)
 	}
-	err = ioutil.WriteFile("registrations.json", content, 0644)
+	// err = ioutil.WriteFile("registrations.json", content, 0644)
+	err = ioutil.WriteFile(er.dbFile, content, 0644)
 	if err != nil {
 		ERROR.Println(err)
 	}
@@ -297,7 +302,8 @@ func (er *EntityRepository) readRegistrationsFromDisk() {
 	er.dbLock.Lock()
 	defer er.dbLock.Unlock()
 
-	content, err := ioutil.ReadFile("registrations.json")
+	// content, err := ioutil.ReadFile("registrations.json")
+	content, err := ioutil.ReadFile(er.dbFile)
 	if err != nil {
 		ERROR.Println(err)
 	}

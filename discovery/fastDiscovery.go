@@ -57,6 +57,8 @@ type FastDiscovery struct {
 	// lock to control the update brokers in database
 	brokersDbLock               sync.RWMutex
 	storeBrokersOnFileScheduled bool
+
+	dbFiles map[string]string
 }
 
 func (fd *FastDiscovery) Init(config *Config) {
@@ -72,6 +74,11 @@ func (fd *FastDiscovery) Init(config *Config) {
 	fd.storeOnDisk = config.Discovery.StoreOnDisk
 	//INFO.Println("config.Discovery.DelayStoreRegistrationsOnFile ", config.Discovery.DelayStoreStoreOnFile)
 	fd.delayStoreOnFile = config.Discovery.DelayStoreOnFile
+
+	fd.dbFiles = make(map[string]string)
+	fd.dbFiles["brokers"] = "discoveryDB/brokers.json"
+	fd.dbFiles["subscriptions"] = "discoveryDB/subscriptions.json"
+	fd.dbFiles["registrations"] = "discoveryDB/registrations.json"
 
 	if fd.storeOnDisk {
 		fd.readSubscriptionsFromDisk()
@@ -614,7 +621,8 @@ func (fd *FastDiscovery) updateSubscriptionsOnDisk() {
 	if err != nil {
 		ERROR.Println(err)
 	}
-	err = ioutil.WriteFile("subscriptions.json", content, 0644)
+	// err = ioutil.WriteFile("subscriptions.json", content, 0644)
+	err = ioutil.WriteFile(fd.dbFiles["subscriptions"], content, 0644)
 	if err != nil {
 		ERROR.Println(err)
 	}
@@ -630,7 +638,8 @@ func (fd *FastDiscovery) readSubscriptionsFromDisk() {
 	fd.subscriptionsDbLock.Lock()
 	defer fd.subscriptionsDbLock.Unlock()
 
-	content, err := ioutil.ReadFile("subscriptions.json")
+	// content, err := ioutil.ReadFile("subscriptions.json")
+	content, err := ioutil.ReadFile(fd.dbFiles["subscriptions"])
 	if err != nil {
 		ERROR.Println(err)
 	}
@@ -677,7 +686,8 @@ func (fd *FastDiscovery) updateBrokersOnDisk() {
 	if err != nil {
 		ERROR.Println(err)
 	}
-	err = ioutil.WriteFile("brokers.json", content, 0644)
+	// err = ioutil.WriteFile("brokers.json", content, 0644)
+	err = ioutil.WriteFile(fd.dbFiles["brokers"], content, 0644)
 	if err != nil {
 		ERROR.Println(err)
 	}
@@ -693,7 +703,8 @@ func (fd *FastDiscovery) readBrokersFromDisk() {
 	fd.brokersDbLock.Lock()
 	defer fd.brokersDbLock.Unlock()
 
-	content, err := ioutil.ReadFile("brokers.json")
+	// content, err := ioutil.ReadFile("brokers.json")
+	content, err := ioutil.ReadFile(fd.dbFiles["brokers"])
 	if err != nil {
 		ERROR.Println(err)
 	}
