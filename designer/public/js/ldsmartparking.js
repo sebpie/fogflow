@@ -76,7 +76,10 @@ $(function() {
     var client = new NGSI10Client(config.brokerURL);
     subscribeResult();
 
-    initParkingSite();
+    if(!config.doNotInitApplications){
+        console.log('doNotInitApplications: ' + doNotInitApplications);
+        initParkingSite();
+    }
 
     showProcessingFlows();
 
