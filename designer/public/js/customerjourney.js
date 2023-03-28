@@ -19,8 +19,8 @@ $(function() {
 
     addMenuItem('CustomerJourney', 'Customer Journey', showCustomerJourney);
     addMenuItem('WishedStore', 'Wished Store', showWishedStore);
-    addMenuItem('SuggestedStore', 'Suggested Store', showWishedStore);
-    addMenuItem('KPIs', 'KPIs', showKPIs);
+    addMenuItem('SuggestedStore', 'Suggested Store', showSuggestedStore);
+    addMenuItem('TransactionsSimulator', 'Transactions Simulator', transactionsSimulator);
 
     // //connect to the socket.io server via the NGSI proxy module
     // var ngsiproxy = new NGSIProxy();
@@ -69,7 +69,7 @@ $(function() {
 
     function showWishedStore() {
         // console.log("showWishedStore")
-        $('#info').html('to show the list of wished store');
+        $('#info').html('wished store from CDP');
 
         var shopTypes = [
             "musicshop",
@@ -100,30 +100,101 @@ $(function() {
 
         html += '<div style="display: table-row">';
 
-        html += '<div style="display: table-cell;"><button style="background: #dfe7ff;color:#4e46e5;padding: 15px 32px;font-size: 16px;border-radius: 12px;" type="button">CDP Wished Store Prediction</button></div>'
-        html += '<div style="display: table-cell;"><table style="width:100px">'
-        html += '<tr><th>musicshop</th><th><button style="background: #f6091c;border-radius: 4px;" type="button">Remove</button></th></tr>'
-        html += '<tr><th>cafe</th><th><button style="background: #f6091c;border-radius: 4px;" type="button">Remove</button></th></tr>'
+        html += '<div style="display: table-cell;vertical-align: middle;"><button id="CDPWishedStore" style="transition: all 0.5s; cursor: pointer; background: #dfe7ff;color:#4e46e5;padding: 15px 32px;font-size: 16px;border-radius: 12px;" type="button">CDP Segment Identification</button></div>'
+        html += '<div style="display: table-cell;"><table id="wishedStoreTypesTable" style="width:100px; display: none;">'
+        html += '<tr><td><button id="rowButton" style="border-radius: 4px;" type="button">x</button></td><td>musicshop</td></tr>'
+        html += '<tr><td><button id="rowButton" style="border-radius: 4px;" type="button">x</button></td><td>cafe</td></tr>'
         html += '</table></div>'
         
+        
+
         html += '</div>'
 
-        html += '<label for="shoptypeselection">Manually choose a shop type:</label>' 
-        html += '<select name="shoptype" id="shoptype">' 
+        html += '<div id="cdpManual" >▷ Manually configure CDP Segment Identification</div>'
+
+        html += '<div id="shopTypeSelect" style="display: none;" ><label for="shopTypeSelection"></label>' 
+        html += '<select name="shoptype" id="shopTypeSelection" >' 
+        html += '<option value="empty">- choose shop type -</option>'
         for (const shopType of shopTypes) {
             html += '<option value="'+shopType+'">'+shopType+'</option>'
         }
-        html += '</select>'
+        html += '</select></div>'
                
         html += '<br><br>';
 
+        html += '<h4>Geolocation of the customer:</h4>';
         html += '<div id="map"  style="width: 600px; height: 500px"></div>';
+        
+        html += '<br><br>';
+        
+        html += '<button  id="getWishedStore" type="button">Get Wished Store List</button>'
+
+        html += '<br><br>';
+        html += '<h4>List of wished stores:</h4>';
+        html += '<div id="wishedStore"></div>';
+
         
         html += '<br><br><br>';
 
-        html += '<h2>Suggested Store without Digital Twin</h2>';
+        $('#content').html(html);
+
+        // associate functions to clickable buttons
+        $('#getWishedStore').click(updateWishedStoreList);
+        $('#CDPWishedStore').click(cdpWishedStore);
+        $('#shopTypeSelection').change(shopTypeSelected);
+        $('#cdpManual').click(cdpManualSelection);
+   
+        $('[id=rowButton]').click(function(e){
+            $(this).closest('tr').remove()
+        })
+
+        // show up the map
+        showMap();
+
+    }
+
+    function shopTypeSelected() {
+        var shopType = document.getElementById("shopTypeSelection").value;
+        if (shopType != "empty"){
+            $('#wishedStoreTypesTable').append('<tr><td><button id="rowButton" style="border-radius: 4px;" type="button">x</button></td><td>'+shopType+'</td></tr>');
+            $('[id=rowButton]').click(function(e){
+                $(this).closest('tr').remove()
+            })
+        }
+
+    }
+    
+    function cdpWishedStore() {
+        var x = document.getElementById("wishedStoreTypesTable");
+        x.style.display = "block";
+    }
+
+    function cdpManualSelection() {
+        var x = document.getElementById("shopTypeSelect");
+        if (x.style.display == "none") {
+            x.style.display = "block";
+            $('#cdpManual').html("▼ Manually configure CDP Segment Identification");
+        } else {
+            x.style.display = "none";
+            $('#cdpManual').html("▷ Manually configure CDP Segment Identification");
+
+        }
+    }
+
+
+    function showSuggestedStore() {
+        // console.log("showWishedStore")
+        $('#info').html('suggested store with and without context');
+
+        var html = ''
         
-        html += '<button  id="getWishedStore" type="button">Show Digital Twin based Wished Store</button>'
+        html += '<br><br>'
+        
+        html += 'Baseline Time in the Shop (minutes): <input type="text" class="input-large" value="60" id="baselineTime"><br>';
+        
+        html += '<br><br>'
+        
+        html += '<h2>Suggested Store without Digital Twin</h2>';
 
         // html += '<div id="wishedStore"></div>';
 
@@ -196,45 +267,232 @@ $(function() {
 
         html += '</tbody></table>'
 
-        html += '&nbsp&nbsp&nbsp&nbsp&nbsp';
+        html += '<br><br><br>';
 
         $('#content').html(html);
 
         // associate functions to clickable buttons
-        $('#getWishedStore').click(updateWishedStoreList);
         $('#suggStoreNoContext').click(createWishedStoreTable_noContext);
         $('#suggStorePeopleCount').click(createWishedStoreTable_peopleCount);
         $('#suggStorePredictedLinReg').click(createWishedStoreTable_predictedLinReg);
 
-        // show up the map
-        showMap();
 
         displaySlider();
-
-
     }
 
     
     
 
-    function showKPIs() {
-        $('#info').html('list of all digital twins and each of them is a virtual entity');
+    function transactionsSimulator() {
+
+        $('#info').html('simulate scenario for total transactions');
 
         var html = '<div id="kpis"></div>';
+        html += 'Number of Customers: <input type="text" class="input-large" id="customers"><br>';
+        html += 'Time Budget: <input type="text" class="input-large" id="time_budget"><br>';
+        html += 'Baseline time per shop: <input type="text" class="input-large" id="baseline_time_per_shop"><br>';
+        html += '<th><button id="startSimulation" type="button">Simulate Transactions</button></th>'
+        html += '<div id="simulationresult"></div>';
+        html += '<div id="transactionsChart"><svg style="height:500px"></svg></div>'
+        html += '<div id="shopsChart"><svg style="height:500px"></svg></div>'
+
         $('#content').html(html);
-        updateKPIs();
+
+        // showChart('#chart svg',cumulativeTestData())
+
+        //simulateTransactions(1000,60,15,-1,"building_occupancy")
+        
+        $('#startSimulation').click(runSimulations);
+
+    }
+
+    function runSimulations(){
+
+        var number_customers_under_study = parseFloat($('#customers').val());
+        var time_budget = parseFloat($('#time_budget').val());
+        var baseline_time_per_shop = parseFloat($('#baseline_time_per_shop').val());
+
+        
+        var simulationsResults_noContext = {"key": "noContext", "values":[]}
+        var simulationsResults_peopleCount = {"key": "peopleCount", "values":[]}
+        var simulationsResults_predictionLinReg = {"key": "predictionLinReg", "values":[]}
+
+        var simulationsResults_shops_noContext = {"key": "noContext", "values":[]}
+        var simulationsResults_shops_peopleCount = {"key": "peopleCount", "values":[]}
+        var simulationsResults_shops_predictionLinReg = {"key": "predictionLinReg", "values":[]}
+
+        // Simulate only once for noContext
+        // var noContextSimulationResult = simulateTransactions(number_customers_under_study, 
+        //         time_budget, 
+        //         baseline_time_per_shop, 
+        //         -1, 
+        //         "building_occupancy")
+
+        var temp = null
+        for (let percentage = 5; percentage < 101; percentage++) {
+
+            // Add the already simulated one for noContext
+            // simulationsResults_noContext.values.push([percentage,noContextSimulationResult])
+
+            // Simulate for peopleCount
+
+            temp = simulateTransactions(number_customers_under_study, 
+                time_budget, 
+                baseline_time_per_shop, 
+                -1, 
+                "building_occupancy")
+            simulationsResults_noContext.values.push( 
+                [percentage,
+                    temp.successful_transactions])
+            simulationsResults_shops_noContext.values.push( 
+                [percentage,
+                    temp.selected_shops])
+
+            var maxOccupancy = percentage * maxCapability / 100
+
+            // Simulate for peopleCount
+            
+            temp = simulateTransactions(number_customers_under_study, 
+                time_budget, 
+                baseline_time_per_shop, 
+                maxOccupancy, 
+                "building_occupancy")
+            simulationsResults_peopleCount.values.push( 
+                [percentage,
+                    temp.successful_transactions])
+            simulationsResults_shops_peopleCount.values.push( 
+                [percentage,
+                    temp.selected_shops])
+
+            // Simulate for predictionLinReg                                                        
+            temp = simulateTransactions(number_customers_under_study, 
+                time_budget, 
+                baseline_time_per_shop, 
+                maxOccupancy, 
+                "predicted_building_occupancy_linreg")
+            simulationsResults_predictionLinReg.values.push(
+                [percentage,
+                    temp.successful_transactions])
+            simulationsResults_shops_predictionLinReg.values.push( 
+                [percentage,
+                    temp.selected_shops])
+        }
+
+        var simulationsResults_transactions = [simulationsResults_noContext, simulationsResults_peopleCount, simulationsResults_predictionLinReg]
+        console.log(simulationsResults_transactions)
+        showChart('#transactionsChart svg',simulationsResults_transactions, "Occupancy Percentage", "Transactions")
+
+        var simulationsResults_shops = [simulationsResults_shops_noContext, simulationsResults_shops_peopleCount, simulationsResults_shops_predictionLinReg]
+        console.log(simulationsResults_shops)
+        showChart('#shopsChart svg',simulationsResults_shops,  "Occupancy Percentage", "Selected Shops")
+
+    }
+
+    function simulateTransactions(number_customers_under_study, time_budget, baseline_time_per_shop, maxOccupancy, attributeNameToCheck){
+
+        // attributeNameToCheck = "building_occupancy"
+
+        const crowdValues = []
+
+        for (const element of wishedStoreList) { 
+            
+            //console.log(element.attributes)
+            if (maxOccupancy < 0 || element.attributes[attributeNameToCheck].value < maxOccupancy){
+                //console.log("taking "+ element.entityId.id);
+                crowdValues.push(element.attributes.building_occupancy.value)
+            } else {
+                //console.log("not taking" + element.entityId.id)
+            }
+        }
+
+        console.log("number of selected shops "+ crowdValues.length)
+
+        var successful_transactions = 0
+
+        console.log("number of number_customers_under_study "+ number_customers_under_study)
+
+        for (let i = 0; i < number_customers_under_study; i++) {
+            var timer = 0.0
+            while (timer < time_budget){
+                const random = Math.floor(Math.random() * crowdValues.length);
+                // console.log("random "+ random)
+                crowd = crowdValues[random];
+                // console.log("crowd "+crowd)
+                shop_time = getWaitingTime(crowd, baseline_time_per_shop) + baseline_time_per_shop
+                // console.log("shop_time "+shop_time+ " "+typeof shop_time)
+                timer += shop_time
+                // console.log("timer "+timer + " "+typeof timer)
+                if (timer < time_budget){
+                    successful_transactions += 1
+                }
+            }
+        }
+
+
+        return {"successful_transactions" : successful_transactions, "selected_shops" : crowdValues.length}
+
+    }
+
+    function showChart(divID, dataset, xLabel, yLabel){
+        var chart = nv.models.lineChart()
+            .useInteractiveGuideline(true)
+            .x(function(d) { return d[0] })
+            .y(function(d) { return d[1] })
+            .color(d3.scale.category10().range())
+            .duration(300)
+            .clipVoronoi(false);
+            
+        chart.dispatch.on('renderEnd', function() {
+            console.log('render complete: cumulative line with guide line');
+        });
+        
+        chart.xAxis.tickFormat(function(d) {
+            return d+"%"
+        });
+
+        chart.xAxis.axisLabel(xLabel)
+        // console.log(chart.yAxis.range())
+        chart.yAxis.axisLabel(yLabel)
+
+        // chart.yAxis.tickFormat(d3.format(',.1%'));
+
+        d3.select(divID)
+            .datum(dataset)
+            .call(chart);
+
+        //TODO: Figure out a good way to do this automatically
+        nv.utils.windowResize(chart.update);
+
+        // chart.dispatch.on('stateChange', function(e) { nv.log('New State:', JSON.stringify(e)); });
+        // chart.state.dispatch.on('change', function(state){
+        //     nv.log('state', JSON.stringify(state));
+        // });
     }
 
     function updateWishedStoreList() {
+
+ 
+
         var queryReq = {}
-        queryReq.entities = [{
-            "type": "kitchensupplystore",
-            "isPattern": true
-          },
-          {
-            "type": "bookshop",
-            "isPattern": true
-          }];
+        queryReq.entities = []
+        // queryReq.entities = [{
+        //     "type": "kitchensupplystore",
+        //     "isPattern": true
+        //   },
+        //   {
+        //     "type": "bookshop",
+        //     "isPattern": true
+        //   }];
+
+        var storeTableRows = document.getElementById("wishedStoreTypesTable").rows
+        for (let i=0; i < storeTableRows.length; i++){
+            storeType = storeTableRows[i].cells[1].innerHTML
+            console.log(storeType)
+            queryReq.entities.push({
+                    "type": storeType,
+                    "isPattern": true
+                  })
+        }
 
         queryReq.restriction = {"scopes": [geoscope]}
 
@@ -247,21 +505,7 @@ $(function() {
             console.log('failed to query context');
         });
     }
-
-    // function updateKPIs() {
-    //     var queryReq = {}
-    //     //queryReq.entities = [{ id: 'Twin.*', isPattern: true }];
-    //     queryReq.type = 'Query';
-    //     queryReq.entities = [{ idPattern : 'urn:ngsi-ld:Twin.*' }];
-    //     ldclient.queryContext(queryReq).then(function(twinList) {
-    //         console.log(twinList);
-    //         // displayTwinList(twinList);
-    //     }).catch(function(error) {
-    //         console.log(error);
-    //         console.log('failed to query context');
-    //     });
-    // }
-
+    
     function occupancyPercentageSlidingBar(){
         var html = '<div class="slidecontainer">';
         html += '<input type="range" min="1" max="100" value="' + occupancyPercentage + '" class="slider" id="occupancyRange">'
@@ -389,43 +633,70 @@ $(function() {
     }
 
     function createWishedStoreTable_noContext(){
-        data = createWishedStoreTable(wishedStoreList, "building_occupancy", -1)
+        data = createWishedStoreTable(wishedStoreList, 
+            "building_occupancy", 
+            -1,
+            [],
+            [])
         html = data.table
         $('#suggStoreNoContextTable').html(html);
         console.log(data.averageOccupancy)
-        console.log(getWaitingTime(data.averageOccupancy, 60))
-        waitingTime = Math.round((getWaitingTime(data.averageOccupancy, 60) + Number.EPSILON) * 100) / 100
+        var baselineTime = parseFloat($('#baselineTime').val());
+        console.log(getWaitingTime(data.averageOccupancy, baselineTime))
+        waitingTime = Math.round((getWaitingTime(data.averageOccupancy, baselineTime) + Number.EPSILON) * 100) / 100
         $('#shopsCountNoContext').html(data.shopsCount);
         $('#avgTimeNoContext').html(waitingTime);
+        //Add borders to the cells
+        $('td').css("border", "1px solid black"); 
+        $('td').css("text-align", "center"); 
+        $('th').css("border", "1px solid black"); 
     }
 
     function createWishedStoreTable_peopleCount(){
-        data = createWishedStoreTable(wishedStoreList, "building_occupancy", maxCapability*(occupancyPercentage/100))
+        data = createWishedStoreTable(wishedStoreList, 
+            "building_occupancy", 
+            maxCapability*(occupancyPercentage/100),
+            ['building_occupancy'],
+            ['Occupancy'])
         html = data.table
         $('#suggStorePeopleCountTable').html(html);
         console.log(data.averageOccupancy)
-        console.log(getWaitingTime(data.averageOccupancy, 60))
-        waitingTime = Math.round((getWaitingTime(data.averageOccupancy, 60) + Number.EPSILON) * 100) / 100
+        var baselineTime = parseFloat($('#baselineTime').val());
+        console.log(getWaitingTime(data.averageOccupancy, baselineTime))
+        waitingTime = Math.round((getWaitingTime(data.averageOccupancy, baselineTime) + Number.EPSILON) * 100) / 100
         $('#shopsCountPeopleCount').html(data.shopsCount);
         $('#avgTimePeopleCount').html(waitingTime);
+        //Add borders to the cells
+        $('td').css("border", "1px solid black"); 
+        $('td').css("text-align:", "center"); 
+        $('th').css("border", "1px solid black"); 
     }
 
     function createWishedStoreTable_predictedLinReg(){
-        data = createWishedStoreTable(wishedStoreList, "predicted_building_occupancy_linreg", maxCapability*(occupancyPercentage/100))
+        data = createWishedStoreTable(wishedStoreList, 
+            "predicted_building_occupancy_linreg", 
+            maxCapability*(occupancyPercentage/100),
+            ['predicted_building_occupancy_linreg', 'CO2','building_occupancy'],
+            ['Prediction','CO2', 'Occupancy'])
         html = data.table
         $('#suggStorePredictedLinRegTable').html(html);
         console.log(data.averageOccupancy)
-        console.log(getWaitingTime(data.averageOccupancy, 60))
-        waitingTime = Math.round((getWaitingTime(data.averageOccupancy, 60) + Number.EPSILON) * 100) / 100
+        var baselineTime = parseFloat($('#baselineTime').val());
+        console.log(getWaitingTime(data.averageOccupancy, baselineTime))
+        waitingTime = Math.round((getWaitingTime(data.averageOccupancy, baselineTime) + Number.EPSILON) * 100) / 100
         $('#shopsCountPredictedLinReg').html(data.shopsCount);
         $('#avgTimePredictedLinReg').html(waitingTime);
+        //Add borders to the cells
+        $('td').css("border", "1px solid black"); 
+        $('td').css("text-align:", "center"); 
+        $('th').css("border", "1px solid black"); 
     }
 
     function getWaitingTime(customers, baselineTime){
         return (customers/(maxCapability)) * baselineTime
     }
 
-    function createWishedStoreTable(wishedStoreList, attributeNameToCheck, maxOccupancy) {
+    function createWishedStoreTable(wishedStoreList, attributeNameToCheck, maxOccupancy, properties, headers) {
 
         
         var html = '';
@@ -437,16 +708,23 @@ $(function() {
         // html += '<th><button id="occupancysort" type="button">Occupancy</button></th>'
         html += '<th>Shop ID</th>'
         html += '<th>Shop Type</th>'
-        html += '<th>Occupancy</th>'
+        for (const header of headers){
+            html += '<th>'+header+'</th>'
+        }
         html += '</thead></tr>'
         html += '<tbody>'
 
         var count = 0
         var accum = 0
         for (const element of wishedStoreList) {
-            console.log(element.attributes)
+            // console.log(element.attributes)
             if (maxOccupancy < 0 || element.attributes[attributeNameToCheck].value < maxOccupancy){
-                html += '<tr style="border: 1px solid black;"><td>'+element.entityId.id+'</td><td>'+element.entityId.type+'</td><td>'+element.attributes.building_occupancy.value+'</td></tr>'
+                html += '<tr style="border: 1px solid black;"><td>'+element.entityId.id+'</td><td>'+element.entityId.type+'</td>'
+                for (const property of properties){
+                    html += '<td>'+element.attributes[property].value+'</td>'
+                }
+                html += '</tr>'
+                // html += '<tr style="border: 1px solid black;"><td>'+element.entityId.id+'</td><td>'+element.entityId.type+'</td><td>'+element.attributes.building_occupancy.value+'</td></tr>'                
                 console.log("taking "+ element.entityId.id);
                 count += 1
                 accum += element.attributes.building_occupancy.value
@@ -487,6 +765,11 @@ $(function() {
         html += '</tbody></table>'
 
         $('#wishedStore').html(html);
+
+        
+        $('td').css("border", "1px solid black"); 
+        $('td').css("text-align", "center"); 
+        $('th').css("border", "1px solid black"); 
     }
 
 
@@ -507,279 +790,5 @@ $(function() {
             occupancyPercentage = this.value;
         } 
     }
-
-
-    // function removeDigitalTwin(deviceObj) {
-    //     var entityid = {
-    //         id: deviceObj.entityId.id,
-    //         isPattern: false
-    //     };
-
-    //     client.deleteContext(entityid).then(function(data) {
-    //         console.log('remove the digital twin');
-
-    //         // show the updated digital twin list
-    //         showKPIs();
-    //     }).catch(function(error) {
-    //         console.log('failed to cancel a requirement');
-    //     });
-    // }
-
-
-    // function showTasks() {
-    //     $('#info').html('list of all triggerred function tasks');
-
-    //     var queryReq = {}
-    //     queryReq.entities = [{ type: 'Task', isPattern: true }];
-
-    //     client.queryContext(queryReq).then(function(taskList) {
-    //         console.log(taskList);
-    //         displayTaskList(taskList);
-    //     }).catch(function(error) {
-    //         console.log(error);
-    //         console.log('failed to query task');
-    //     });
-    // }
-
-
-    // function displayTaskList(tasks) {
-    //     $('#info').html('list of all function tasks that have been triggerred');
-
-    //     if (tasks.length == 0) {
-    //         $('#content').html('');
-    //         return;
-    //     }
-
-    //     var html = '<table class="table table-striped table-bordered table-condensed">';
-
-    //     html += '<thead><tr>';
-    //     html += '<th>ID</th>';
-    //     html += '<th>Type</th>';
-    //     html += '<th>Service</th>';
-    //     html += '<th>Task</th>';
-    //     html += '<th>Worker</th>';
-    //     html += '<th>port</th>';
-    //     html += '<th>status</th>';
-    //     html += '</tr></thead>';
-
-    //     for (var i = 0; i < tasks.length; i++) {
-    //         var task = tasks[i];
-    //         html += '<tr>';
-    //         html += '<td>' + task.entityId.id + '</td>';
-    //         html += '<td>' + task.entityId.type + '</td>';
-    //         html += '<td>' + task.attributes.service.value + '</td>';
-    //         html += '<td>' + task.attributes.task.value + '</td>';
-    //         html += '<td>' + task.metadata.worker.value + '</td>';
-
-    //         html += '<td>' + task.attributes.port.value + '</td>';
-
-    //         if (task.attributes.status.value == "paused") {
-    //             html += '<td><font color="red">' + task.attributes.status.value + '</font></td>';
-    //         } else {
-    //             html += '<td><font color="green">' + task.attributes.status.value + '</font></td>';
-    //         }
-
-    //         html += '</tr>';
-    //     }
-
-    //     html += '</table>';
-
-    //     $('#content').html(html);
-    // }
-
-
-    // function showParking() {
-    //     $('#info').html('to illustrate the smart parking use case for Murcia');
-
-    //     var html = '';
-
-    //     html += '<div id="map"  style="width: 800px; height: 600px"></div>';
-
-    //     $('#content').html(html);
-
-    //     var osmUrl = 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    //     var osm = L.tileLayer(osmUrl, { maxZoom: 15, zoom: 13 });
-    //     var map = new L.Map('map', {
-    //         layers: [osm],
-    //         center: myCenter,
-    //         zoom: 13,
-    //         zoomControl: true
-    //     });
-
-    //     var drawnItems = new L.FeatureGroup();
-    //     map.addLayer(drawnItems);
-
-    //     // show edge nodes on the map
-    //     displayEdgeNodeOnMap(map);
-
-    //     // show moving car
-    //     drawConnectedCar(map);
-
-    //     // display parking sites
-    //     displayParkingSites(map);
-
-    //     // remember the created map
-    //     curMap = map;
-    // }
-
-    // function displayEdgeNodeOnMap(map) {
-    //     var queryReq = {}
-    //     queryReq.entities = [{ type: 'Worker', isPattern: true }];
-    //     queryReq.restriction = { scopes: [{ scopeType: 'stringQuery', scopeValue: 'role=EdgeNode' }] }
-    //     client.queryContext(queryReq).then(function(edgeNodeList) {
-    //         console.log(edgeNodeList);
-
-    //         var edgeIcon = L.icon({
-    //             iconUrl: '/img/gateway.png',
-    //             iconSize: [48, 48]
-    //         });
-
-    //         for (var i = 0; i < edgeNodeList.length; i++) {
-    //             var worker = edgeNodeList[i];
-
-    //             console.log(worker);
-
-    //             latitude = worker.attributes.location.value.latitude;
-    //             longitude = worker.attributes.location.value.longitude;
-    //             edgeNodeId = worker.entityId.id;
-
-    //             console.log(latitude, longitude, edgeNodeId);
-
-    //             var marker = L.marker(new L.LatLng(latitude, longitude), { icon: edgeIcon });
-    //             marker.nodeID = edgeNodeId;
-    //             marker.addTo(map).bindPopup(edgeNodeId);
-    //             marker.on('click', showRunningTasks);
-
-    //             console.log('=======draw edge on the map=========');
-    //         }
-    //     }).catch(function(error) {
-    //         console.log(error);
-    //         console.log('failed to query context');
-    //     });
-    // }
-
-    // function showRunningTasks() {
-    //     var clickMarker = this;
-
-    //     var queryReq = {}
-    //     queryReq.entities = [{ type: 'Task', isPattern: true }];
-    //     queryReq.restriction = { scopes: [{ scopeType: 'stringQuery', scopeValue: 'worker=' + clickMarker.nodeID }] }
-
-    //     client.queryContext(queryReq).then(function(tasks) {
-    //         console.log(tasks);
-    //         var content = "";
-    //         for (var i = 0; i < tasks.length; i++) {
-    //             var task = tasks[i];
-
-    //             if (task.attributes.status.value == "paused") {
-    //                 content += '<font color="red">' + task.attributes.id.value + '</font><br>';
-    //             } else {
-    //                 content += '<font color="green"><b>' + task.attributes.id.value + '</b></font><br>';
-    //             }
-    //         }
-
-    //         clickMarker._popup.setContent(content);
-    //     }).catch(function(error) {
-    //         console.log(error);
-    //         console.log('failed to query task');
-    //     });
-    // }
-
-    // function drawConnectedCar(map) {
-    //     var taxiIcon = L.icon({
-    //         iconUrl: '/img/taxi.png',
-    //         iconSize: [80, 80]
-    //     });
-
-    //     var path = [
-    //         [37.996655, -1.150094],
-    //         [37.984174, -1.141039]
-    //     ];
-    //     carMarker = L.Marker.movingMarker(path, [10000], { autostart: false, loop: true });
-    //     carMarker.options.icon = taxiIcon;
-
-    //     map.addLayer(carMarker);
-
-    //     carMarker.on('click', function() {
-    //         if (carMarker.isRunning()) {
-    //             console.log('timerID = ', timerID);
-    //             if (timerID != null) {
-    //                 clearInterval(timerID);
-    //             }
-    //             carMarker.pause();
-    //             carMarker.bindPopup('<b>Click me to start !</b>').openPopup();
-    //         } else {
-    //             carMarker.start();
-    //             carMarker.bindPopup('<b>Click me to pause !</b>').openPopup();
-    //             timerID = setInterval(function() {
-    //                 var mylocation = carMarker.getLatLng();
-    //                 updateMobileObject(mylocation);
-    //             }, 1000);
-    //             console.log('timerID = ', timerID);
-    //         }
-    //     });
-
-    //     carMarker.bindPopup('<b>Click me to start !</b>', { closeOnClick: false });
-    //     carMarker.openPopup();
-    // }
-
-    // function displayParkingSites(map) {
-    //     var queryReq = {}
-	// queryReq.type = 'Query';
-    //     queryReq.entities = [{ idPattern: 'urn:ngsi-ld:Twin.ParkingSite.*'}];
-    //     ldclient.queryContext(queryReq).then(function(sites) {
-    //         console.log(sites);
-
-    //         for (var i = 0; i < sites.length; i++) {
-    //             var site = sites[i];
-	//     for (var j = 0; j < site.length; j++) {
-	// 	 var displaySite = site[j];
-    //              console.log(" display sites ",displaySite)
-    //             if (displaySite.iconURL != null) {
-    //                 var iconImag = displaySite.iconURL.value;
-    //                 var icon = L.icon({
-    //                     iconUrl: iconImag,
-    //                     iconSize: [48, 48]
-    //                 });
-
-    //                 latitude = displaySite.location.value.coordinates[0];
-    //                 longitude = displaySite.location.value.coordinates[1];
-    //                 siteId = displaySite.id;
-
-    //                 var marker = L.marker(new L.LatLng(latitude, longitude), { icon: icon });
-    //                 marker.addTo(map).bindPopup(siteId);
-    //             }
-    //         }
-    //    }
-
-    //     }).catch(function(error) {
-    //         console.log(error);
-    //         console.log('failed to query context');
-    //     });
-    // }
-
-    // function updateMobileObject(location) {
-    //     //register a new device
-    //     var movingCarObject = {};
-
-    //     movingCarObject.id = 'urn:ngsi-ld:Twin.ConnectedCar.01';
-        
-    //     movingCarObject = {};
-    //     movingCarObject.iconURL = { type: 'Property', value: '/img/taxi.png' };
-    //     movingCarObject.location = {
-    //         type: 'GeoProperty',
-    //         value: { 
-	// 		type: 'Point',
-	// 		coordinates: [location.lat, location.lng ]}
-    //     };
-
-
-    //     ldclient.updateContext(movingCarObject).then(function(data) {
-    //         console.log(data);
-    //     }).catch(function(error) {
-    //         console.log('failed to update car object');
-    //     });
-
-    // }
 
 });
