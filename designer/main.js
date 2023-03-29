@@ -306,12 +306,12 @@ app.all("/ngsi10/*", function (req, res) {
 });
 
 app.all("/ngsi-ld/*", function (req, res) {
-    //console.log('redirecting to ngsi-ld broker');
+    console.log('redirecting to ngsi-ld broker', cloudBrokerURL);
     ngsiProxy.web(req, res, { target: cloudBrokerURL });
 });
 
 app.all("/ngsi9/*", function (req, res) {
-    //console.log('redirecting to ngsi-v1 discovery');
+    console.log('redirecting to ngsi-v1 discovery', discoveryURL);
     ngsiProxy.web(req, res, { target: discoveryURL });
 });
 

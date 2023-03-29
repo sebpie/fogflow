@@ -17,10 +17,11 @@ $(function() {
 
     var curMap = null;
 
-    addMenuItem('CustomerJourney', 'Customer Journey', showCustomerJourney);
+    addMenuItem('CustomerJourneyScenario', 'Customer Journey Scenario', showCustomerJourneyScenario);
+    addMenuItem('CustomerJourneyDigitalTwin', 'Digital Twin for Customer Journey', showCustomerJourneyDigitalTwin);
     addMenuItem('WishedStore', 'Wished Store', showWishedStore);
-    addMenuItem('SuggestedStore', 'Suggested Store', showSuggestedStore);
-    addMenuItem('TransactionsSimulator', 'Transactions Simulator', transactionsSimulator);
+    addMenuItem('SelectedStores', 'Selected Stores', showSelectedStore);
+    addMenuItem('TransactionsSimulator', 'Suggested Store Simulator', transactionsSimulator);
 
     // //connect to the socket.io server via the NGSI proxy module
     // var ngsiproxy = new NGSIProxy();
@@ -29,6 +30,8 @@ $(function() {
     // client to interact with IoT Broker
     // var ldclient = new NGSILDclient(config.LdbrokerURL);
     var client = new NGSI10Client(config.brokerURL);
+    var ldclient = new NGSILDclient(config.LdbrokerURL);
+
     // subscribeResult();
 
     if(!config.doNotInitApplications){
@@ -36,7 +39,7 @@ $(function() {
         // initParkingSite();
     }
 
-    showCustomerJourney();
+    showCustomerJourneyScenario();
 
     $(window).on('hashchange', function() {
         var hash = window.location.hash;
@@ -58,18 +61,30 @@ $(function() {
     }
 
 
-    function showCustomerJourney() {
-        $('#info').html('to show the customery journey application overview');
+    function showCustomerJourneyScenario() {
+        $('#info').html('Customer journey application scenario');
 
         var html = '';
-        html += '<div><img width="50%" src="/img/smart-parking.png"></img></div>';
+        html += '<div><img width="70%" src="/img/customerjourneyscenario.png"></img></div>';
 
         $('#content').html(html);
     }
 
+    function showCustomerJourneyDigitalTwin() {
+        $('#info').html('Digital Twin for customer journey');
+
+        var html = '';
+        html += '<div><img width="50%" src="/img/customerjourneydigitaltwin.png"></img></div>';
+        html += '<button  id="populate" type="button">Populate System</button>'
+
+        $('#content').html(html);
+
+        $('#populate').click(populateSystem);
+    }
+
     function showWishedStore() {
         // console.log("showWishedStore")
-        $('#info').html('wished store from CDP');
+        $('#info').html('Wished store from Customer Data Platform (CDP)');
 
         var shopTypes = [
             "musicshop",
@@ -94,13 +109,15 @@ $(function() {
 
         var html = ''
 
+        html += '<div><img width="40%" src="/img/customerjourney_cdpSegmentIdentification.png"></img></div>';
+
         html += '<h2>CDP Wished Store</h2>';
         
         html += '<br><br>';
 
         html += '<div style="display: table-row">';
 
-        html += '<div style="display: table-cell;vertical-align: middle;"><button id="CDPWishedStore" style="transition: all 0.5s; cursor: pointer; background: #dfe7ff;color:#4e46e5;padding: 15px 32px;font-size: 16px;border-radius: 12px;" type="button">CDP Segment Identification</button></div>'
+        html += '<div style="display: table-cell;vertical-align: middle;"><button id="CDPWishedStore" style="transition: all 0.5s; cursor: pointer; background: #d0be34;color:#ffffff;padding: 15px 32px;font-size: 16px;border-radius: 100px;" type="button">CDP Segment Identification</button></div>'
         html += '<div style="display: table-cell;"><table id="wishedStoreTypesTable" style="width:100px; display: none;">'
         html += '<tr><td><button id="rowButton" style="border-radius: 4px;" type="button">x</button></td><td>musicshop</td></tr>'
         html += '<tr><td><button id="rowButton" style="border-radius: 4px;" type="button">x</button></td><td>cafe</td></tr>'
@@ -181,13 +198,35 @@ $(function() {
         }
     }
 
+    function populateSystem() {
 
-    function showSuggestedStore() {
+        fetch('/data/shops_data.json')
+            .then(response => response.json())
+            .then( shopsdata =>
+                ldclient.updateContext(shopsdata).then(function(data) {
+                    console.log(data);
+                }).catch(function(error) {
+                    console.log('failed to create a parking site entity');
+                })
+        )
+    }
+
+
+
+    function showSelectedStore() {
         // console.log("showWishedStore")
-        $('#info').html('suggested store with and without context');
+        $('#info').html('Suggested store with and without context');
 
         var html = ''
         
+        html += '<div><img width="50%" src="/img/customerjourney_wishedStoreSelection.png"></img></div>';
+
+        html += '<br><br>'
+
+        html += '<h2>Customer Satisfaction Index Comparison</h2>';
+
+        html += '<div><img width="50%" src="/img/customerjourney_customersatisfactionindex.png"></img></div>';
+
         html += '<br><br>'
         
         html += 'Baseline Time in the Shop (minutes): <input type="text" class="input-large" value="60" id="baselineTime"><br>';
@@ -285,9 +324,10 @@ $(function() {
 
     function transactionsSimulator() {
 
-        $('#info').html('simulate scenario for total transactions');
+        $('#info').html('Simulate scenario for total transactions');
 
         var html = '<div id="kpis"></div>';
+        html += '<div><img width="70%" src="/img/customerjourney_transactionsSimulation.png"></img></div>';
         html += 'Number of Customers: <input type="text" class="input-large" id="customers"><br>';
         html += 'Time Budget: <input type="text" class="input-large" id="time_budget"><br>';
         html += 'Baseline time per shop: <input type="text" class="input-large" id="baseline_time_per_shop"><br>';
