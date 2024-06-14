@@ -1,5 +1,5 @@
 {
-    "my_hostip": "172.17.0.1",
+    "my_hostip": "10.1.99.17",
     "physical_location":{
         "longitude": 139,
         "latitude": 35
@@ -13,7 +13,7 @@
     },
     "discovery": {
         "http_port": 8090,
-        "storeOnDisk": false,
+        "storeOnDisk": true,
         "delayStoreOnFile" : 3
     },
     "broker": {

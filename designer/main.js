@@ -68,6 +68,8 @@ if (!('host_ip' in globalConfigFile.broker)) {
 var cloudBrokerURL = "http://" + globalConfigFile.broker.host_ip + ":" + globalConfigFile.broker.http_port
 var ngsi10client = new NGSIClient.NGSI10Client(cloudBrokerURL + "/ngsi10");
 
+config.notRecreateSubscriptions = globalConfigFile.designer.notRecreateSubscriptions;
+
 var recheck_interval = 2000;
 var timerID = setTimeout(function entityrestore(){
     var url = cloudBrokerURL + "/version";
@@ -81,29 +83,58 @@ var timerID = setTimeout(function entityrestore(){
             }); 
         });
         
-        // create the persistent subscriptions at the FogFlow Cloud Broker
-        Object.values(db.data.subscriptions).forEach(subscription => {        
-            var headers = {};
-        
-            if (subscription.destination_broker == 'NGSI-LD') {
-                headers["Content-Type"] = "application/json";
-                headers["Destination"] = "NGSI-LD";
-                headers["NGSILD-Tenant"] = subscription.tenant;
-            } else if (subscription.destination_broker == 'NGSIv2') {
-                headers["Content-Type"] = "application/json";
-                headers["Destination"] = "NGSIv2";        
-            }            
-            
-            var subscribeCtxReq = {};
-            subscribeCtxReq.entities = [{ type: subscription['entity_type'], isPattern: true }];
-            subscribeCtxReq.reference = subscription['reference_url'];
-            ngsi10client.subscribeContextWithHeaders(subscribeCtxReq, headers).then(function (subscriptionId) {
-                console.log("new subscription id = ", subscriptionId);
-                console.log(subscription)                
-            }).catch(function (error) {
-                console.log('failed to subscribe context, ', error);
-            });            
-        });        
+
+        if (!config.notRecreateSubscriptions){
+
+            fetch(cloudBrokerURL + "/ngsi10/subscription").
+            then((response) => response.json()).
+            then(brokerSubscriptions => { 
+
+                Object.keys(db.data.subscriptions).
+                    forEach(key => {
+                        console.log("checking if the following subscription is already in the broker: ",key)
+                        if(brokerSubscriptions.hasOwnProperty(key)) {
+                            //delete designerSubscriptions[key];
+                            console.log("subscription already in the broker:", key)
+                        } else {
+
+                            var subscription = db.data.subscriptions[key]
+    
+                            var headers = {};
+                        
+                            if (subscription.destination_broker == 'NGSI-LD') {
+                                headers["Content-Type"] = "application/json";
+                                headers["Destination"] = "NGSI-LD";
+                                headers["NGSILD-Tenant"] = subscription.tenant;
+                            } else if (subscription.destination_broker == 'NGSIv2') {
+                                headers["Content-Type"] = "application/json";
+                                headers["Destination"] = "NGSIv2";        
+                            }            
+                            
+                            var subscribeCtxReq = {};
+                            subscribeCtxReq.entities = [{ type: subscription['entity_type'], isPattern: true }];
+                            subscribeCtxReq.reference = subscription['reference_url'];
+                            // it is necessary to send them out not at the same time for having different subID
+                            // since the subID is based on timestamp
+                            var delayBeforeSend = Math.floor(Math.random() * 1000)
+                            setTimeout(function(){
+                                //console.log("waited", delayBeforeSend);
+                                ngsi10client.subscribeContextWithHeaders(subscribeCtxReq, headers).then(function (subscriptionId) {
+                                    console.log("new subscription id = ", subscriptionId);
+                                    console.log(subscription)
+                                    delete db.data.subscriptions[key];
+                                    db.data.subscriptions[subscriptionId] = subscription
+                                    db.write();                
+                                }).catch(function (error) {
+                                    console.log('failed to subscribe context, ', error);
+                                });
+                            }, delayBeforeSend);
+                        }     
+                });  
+            })
+        } else {
+            console.log("not recreating subscriptions ", config.notRecreateSubscriptions);
+        } 
         
     }).catch(error=>{
         console.log("try it again due to the error: ", error.code);
@@ -420,6 +451,39 @@ app.post('/operator', jsonParser, async function (req, res) {
     res.sendStatus(200)
 });
 
+app.get('/dockerimage', async function (req, res) {
+    var operators = db.data.operators;
+    var dockers = {}
+    for (const [key, value] of Object.entries(operators)) {
+        if (value.hasOwnProperty('dockerimages') &&  value.dockerimages.length > 0){
+            dockers.key = value
+        }
+    }            
+    res.json(dockers);
+
+});
+
+app.post('/dockerimage', jsonParser, async function (req, res) {
+    var dockerimages = req.body;
+    for (var i = 0; i < dockerimages.length; i++) {
+        var dockerimage = dockerimages[i];
+        var operatorName = dockerimage.operatorName
+  
+        if (operatorName in db.data.operators) {
+            if (db.data.operators[operatorName].hasOwnProperty('dockerimages')){
+                db.data.operators[operatorName].dockerimages.push(dockerimage)         
+            } else {
+                db.data.operators[operatorName].dockerimages = []
+                db.data.operators[operatorName].dockerimages.push(dockerimage)         
+            }
+        } 
+    }
+
+    await db.write();
+
+    res.sendStatus(200)
+});
+
 app.get('/dockerimage/:operator', async function (req, res) {
     var operatorName = req.params.operator;    
     var operator = db.data.operators[operatorName];
@@ -430,8 +494,16 @@ app.post('/dockerimage/:operator', jsonParser, async function (req, res) {
     var operatorName = req.params.operator;
     var dockerimage = req.body;
 
+    console.log(operatorName in db.data.operators)
+    console.log(db.data.operators[operatorName])
+
     if (operatorName in db.data.operators) {
-        db.data.operators[operatorName].dockerimages.push(dockerimage)         
+        if (db.data.operators[operatorName].hasOwnProperty('dockerimages')){
+            db.data.operators[operatorName].dockerimages.push(dockerimage)         
+        } else {
+            db.data.operators[operatorName].dockerimages = []
+            db.data.operators[operatorName].dockerimages.push(dockerimage)         
+        }
     }    
 
     await db.write();

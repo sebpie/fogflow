@@ -4,11 +4,11 @@ $(function() {
     var handlers = {};
 
     addMenuItem('Operator', 'Operator', showOperator);
+
+    initOperatorList();
+    initDockerImageList(); 
     
     showOperator();
-    
-    //initOperatorList();
-    //initDockerImageList();    
 
     $(window).on('hashchange', function() {
         var hash = window.location.hash;
@@ -51,6 +51,7 @@ $(function() {
     }
 
     function initOperatorList(){
+        console.log("let's initialize the operator list")
         fetch('/operator').then(res => res.json()).then(opList => {
             if (Object.keys(opList).length === 0) {
                 var operators = defaultOperatorList();
@@ -71,6 +72,27 @@ $(function() {
                 showOperator();
             }               
         })
+    }
+
+    function initDockerImageList(){
+        console.log("Initialize docker images list")              
+        fetch('/dockerimage').then(res => res.json()).then(imageList => {
+            if (Object.keys(imageList).length === 0) {
+                var images = defaultDockerImageList();
+                fetch("/dockerimage", {
+                    method: "POST",
+                    headers: {
+                        Accept: "application/json",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(images)
+                })
+                .then(response => {
+                    console.log("send the initial list of docker images: ", response.status)
+                })
+                .catch(err => console.log(err));
+            }               
+        })          
     }
 
     function queryOperatorList() {
@@ -109,7 +131,11 @@ $(function() {
             html += '<td>' + operator.description + '</td>';
             
             html += '<td>';
-            html += operator.dockerimages.length;                
+            if(operator.hasOwnProperty('dockerimages')){
+                html += operator.dockerimages.length;                
+            } else {
+                html += 0;
+            }
             html += '</td>';                                
                         
             if ('parameters' in operator) {
@@ -498,25 +524,7 @@ $(function() {
 ////       });
 //   }
 
-//   function initDockerImageList(){                        
-//       fetch('/dockerimage').then(res => res.json()).then(imageList => {
-//           if (Object.keys(imageList).length === 0) {
-//               var images = defaultDockerImageList();
-//               fetch("/dockerimage", {
-//                   method: "POST",
-//                   headers: {
-//                       Accept: "application/json",
-//                       "Content-Type": "application/json"
-//                   },
-//                   body: JSON.stringify(images)
-//               })
-//               .then(response => {
-//                   console.log("send the initial list of docker images: ", response.status)
-//               })
-//               .catch(err => console.log(err));
-//           }               
-//       })          
-//   }
+
 
 //    function dockerImageRegistration() {
 //        $('#info').html('New docker image registration');

@@ -2,47 +2,58 @@ function defaultOperatorList(){
         var operatorList = [{
             name: "nodejs",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "python",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "iotagent",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "counter",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "anomaly",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "facefinder",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "connectedcar",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "recommender",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "privatesite",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "publicsite",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }, {
             name: "dummy",
             description: "",
-            parameters: []
+            parameters: [],
+            dockerimages: []
         }];
 	
 	return operatorList;
