@@ -556,6 +556,8 @@ func (nc *NGSI9Client) DiscoverContextAvailability(discoverCtxAvailabilityReq *D
 		return nil, err
 	}
 
+	// DEBUG.Printf("Discovery request to %s: %s", nc.IoTDiscoveryURL+"/discoverContextAvailability", string(body))
+
 	req, err := http.NewRequest("POST", nc.IoTDiscoveryURL+"/discoverContextAvailability", bytes.NewBuffer(body))
 	if err != nil {
 		return nil, err

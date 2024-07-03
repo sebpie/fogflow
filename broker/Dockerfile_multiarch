@@ -1,0 +1,5 @@
+FROM alpine
+ARG TARGETOS
+ARG TARGETARCH
+ADD /${TARGETOS}/${TARGETARCH}/broker  /
+CMD ["/broker"]

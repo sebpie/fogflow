@@ -14,7 +14,8 @@ import (
 )
 
 func postNotifyContext(ctxElems []ContextElement, subscriptionId string, URL string, DestinationBrokerType string, tenant string, httpsCfg *HTTPS) error {
-	INFO.Println("destination protocol: ", DestinationBrokerType)
+	//INFO.Println("destination protocol: ", DestinationBrokerType)
+	// INFO.Println("ctxElems: ", ctxElems)
 
 	switch DestinationBrokerType {
 	case "NGSI-LD":
@@ -28,7 +29,7 @@ func postNotifyContext(ctxElems []ContextElement, subscriptionId string, URL str
 
 // for ngsiv1 consumer
 func postNGSIV1NotifyContext(ctxElems []ContextElement, subscriptionId string, URL string, httpsCfg *HTTPS) error {
-	INFO.Println("NGSIv1 NOTIFY: ", URL)
+	// INFO.Println("NGSIv1 NOTIFY: ", URL)
 
 	payload := toNGSIv1Payload(ctxElems)
 
@@ -95,7 +96,7 @@ func postNGSIV2NotifyContext(ctxElems []ContextElement, subscriptionId string, U
 		return err
 	}
 
-	INFO.Println(string(body))
+	// INFO.Println(string(body))
 
 	req, err := http.NewRequest("POST", URL, bytes.NewBuffer(body))
 	req.Header.Add("Content-Type", "application/json")
@@ -164,7 +165,8 @@ func toNGSIv2Payload(ctxElems []ContextElement) []map[string]interface{} {
 
 // for NGSI-LD consumer
 func postNGSILDUpsert(ctxElems []ContextElement, subscriptionId string, URL string, tenant string) error {
-	INFO.Println("NGSI-LD NOTIFY: ", URL)
+	//INFO.Println("NGSI-LD NOTIFY: ", URL)
+	// DEBUG.Println(ctxElems)
 
 	payload := toNGSILDPayload(ctxElems)
 
@@ -233,6 +235,9 @@ func toNGSILDPayload(ctxElems []ContextElement) []map[string]interface{} {
 			default:
 				propertyValue["type"] = "Property"
 				propertyValue["value"] = attr.Value
+				for _, metadata := range attr.Metadata {
+					propertyValue[metadata.Name] = metadata.Value
+				}
 			}
 
 			element[attr.Name] = propertyValue

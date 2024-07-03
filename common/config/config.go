@@ -52,9 +52,11 @@ type Config struct {
 		Debug    string `json:"debug"`
 	} `json:"logging"`
 	Discovery struct {
-		HostIP    string `json:"host_ip"`
-		HTTPPort  int    `json:"http_port"`
-		HTTPSPort int    `json:"https_port"`
+		HostIP           string `json:"host_ip"`
+		HTTPPort         int    `json:"http_port"`
+		HTTPSPort        int    `json:"https_port"`
+		StoreOnDisk      bool   `json:"storeOnDisk"`
+		DelayStoreOnFile int    `json:"delayStoreOnFile"`
 	} `json:"discovery"`
 	Broker struct {
 		HostIP            string `json:"host_ip"`
@@ -63,9 +65,10 @@ type Config struct {
 		HeartbeatInterval int    `json:"heartbeat_interval"`
 	} `json:"broker"`
 	Master struct {
-		HostIP      string `json:"host_ip"`
-		AgentPort   int    `json:"ngsi_agent_port"`
-		RESTAPIPort int    `json:"rest_api_port"`
+		HostIP                    string `json:"host_ip"`
+		AgentPort                 int    `json:"ngsi_agent_port"`
+		RESTAPIPort               int    `json:"rest_api_port"`
+		InfiniteReconnectionTries bool   `json:"infinite_reconnection_tries"`
 	} `json:"master"`
 	Designer struct {
 		HostIP     string `json:"host_ip"`
@@ -73,15 +76,16 @@ type Config struct {
 		HTTPSPort  int    `json:"https_webSrvPort"`
 	} `json:"designer"`
 	Worker struct {
-		ContainerManagement string                `json:"container_management"`
-		AppNameSpace        string                `json:"app_namespace"`
-		EdgeControllerPort  int                   `json:"edge_controller_port"`
-		Registry            RegistryConfiguration `json:"registry,omitempty"`
-		ContainerAutoRemove bool                  `json:"container_autoremove"`
-		StartActualTask     bool                  `json:"start_actual_task"`
-		Capacity            int                   `json:"capacity"`
-		HeartbeatInterval   int                   `json:"heartbeat_interval"`
-		DetectionDuration   int                   `json:"detection_duration"`
+		ContainerManagement       string                `json:"container_management"`
+		AppNameSpace              string                `json:"app_namespace"`
+		EdgeControllerPort        int                   `json:"edge_controller_port"`
+		Registry                  RegistryConfiguration `json:"registry,omitempty"`
+		ContainerAutoRemove       bool                  `json:"container_autoremove"`
+		StartActualTask           bool                  `json:"start_actual_task"`
+		Capacity                  int                   `json:"capacity"`
+		HeartbeatInterval         int                   `json:"heartbeat_interval"`
+		DetectionDuration         int                   `json:"detection_duration"`
+		InfiniteReconnectionTries bool                  `json:"infinite_reconnection_tries"`
 	} `json:"worker"`
 	RabbitMQ struct {
 		HostIP   string `json:"host_ip"`

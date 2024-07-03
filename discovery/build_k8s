@@ -1,0 +1,1 @@
+docker image tag fogflow/discovery:latest  fogflow/discovery:k8s

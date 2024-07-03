@@ -1,5 +1,5 @@
 {
-    "my_hostip": "192.168.0.59",
+    "my_hostip": "10.1.99.17",
     "physical_location":{
         "longitude": 139,
         "latitude": 35
@@ -12,23 +12,32 @@
         "debug": "stdout"
     },
     "discovery": {
-        "http_port": 8090
+        "http_port": 8090,
+        "storeOnDisk": true,
+        "delayStoreOnFile" : 3
     },
     "broker": {
-        "http_port": 8070
+        "http_port": 8070,
+        "heartbeat_interval": 30
     },     
     "master": {
-        "ngsi_agent_port": 1060    
+        "ngsi_agent_port": 1060,
+        "rest_api_port": 8010,
+        "infinite_reconnection_tries": true    
     },
     "worker": {
         "container_autoremove": false,
         "start_actual_task": true,
-        "capacity": 8
+        "capacity": 8,
+        "heartbeat_interval": 30,
+        "detection_duration": 10,
+        "infinite_reconnection_tries": true
     },
     "designer": {
         "webSrvPort": 8080,
         "agentPort": 1030,
-        "ldAgentPort":1090
+        "ldAgentPort":1090,
+	"doNotInitApplications":true
     },    
     "rabbitmq": {
         "port": 5672,

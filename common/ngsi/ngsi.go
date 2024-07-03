@@ -436,6 +436,26 @@ func (ce *ContextElement) ReadFromNGSILD(ngsildEntity map[string]interface{}) bo
 
 				newCtxAttribute.Value = attrValue
 
+				// dateObserved, dateObservedExist := attribute["dateObserved"]
+				// if dateObservedExist {
+				// 	newCtxMedata := ContextMetadata{}
+				// 	newCtxMedata.Name = "dateObserved"
+				// 	newCtxMedata.Type = "dateObserved"
+				// 	newCtxMedata.Value = dateObserved
+				// 	newCtxAttribute.Metadata = append(newCtxAttribute.Metadata, newCtxMedata)
+				// }
+
+				for key, element := range attribute {
+					if strings.ToLower(key) != "type" && strings.ToLower(key) != "value" {
+						newCtxMedata := ContextMetadata{}
+						newCtxMedata.Name = key
+						newCtxMedata.Type = key
+						newCtxMedata.Value = element
+						newCtxAttribute.Metadata = append(newCtxAttribute.Metadata, newCtxMedata)
+					}
+					//fmt.Println("Key:", key, "=>", "Element:", element)
+				}
+
 				ce.Attributes = append(ce.Attributes, newCtxAttribute)
 			} else if strings.ToLower(attrType) == "relationship" {
 				refObject := attribute["object"]

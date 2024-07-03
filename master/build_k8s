@@ -1,0 +1,1 @@
+docker image tag fogflow/master:latest fogflow/master:k8s

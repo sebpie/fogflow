@@ -31,7 +31,7 @@ $(function() {
     addMenuItem('FogFunction', 'Fog Function', showFogFunctions);
     //addMenuItem('TaskInstance', 'Task Instance', showTaskInstances);
    
-    //initFogFunctionExamples();
+    initFogFunctionExamples();
     showFogFunctions();
     
     queryOperatorList();
