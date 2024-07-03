@@ -314,9 +314,11 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 					if newOptimalWorkerID != task.WorkerID {
 						INFO.Println("[Task migration]:", task.TaskID, " migrated from ", task.WorkerID, " to ", newOptimalWorkerID)
 
-						removeTaskAction := flow.removeExistingTask(task)
-						deploymentActions = append(deploymentActions, removeTaskAction)
-
+						if (task.WorkerID != ""){
+							removeTaskAction := flow.removeExistingTask(task)
+							deploymentActions = append(deploymentActions, removeTaskAction)
+						}
+						
 						task.WorkerID = newOptimalWorkerID
 
 						addTaskAction := flow.addNewTask(task)
