@@ -749,7 +749,7 @@ app.post('/fogfunction', jsonParser, async function (req, res) {
 
         console.log(fogfunction);
         db.data.fogfunctions[fogfunction.name] = fogfunction;
-        db.data.topologies[fogfunction.name] = fogfunction.topology;
+        db.data.topologies[fogfunction.topology.name] = fogfunction.topology;
 
         if (fogfunction.intent.hasOwnProperty('id') == false) {
             var uid = uuid();
