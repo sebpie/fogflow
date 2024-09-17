@@ -46,10 +46,11 @@ type Config struct {
 	Location      PhysicalLocation `json:"physical_location"`
 	SiteID        string           `json:"site_id"`
 	Logging       struct {
-		Info     string `json:"info"`
-		Protocol string `json:"protocol"`
-		Errlog   string `json:"error"`
-		Debug    string `json:"debug"`
+		Info         string `json:"info"`
+		Protocol     string `json:"protocol"`
+		Errlog       string `json:"error"`
+		Debug        string `json:"debug"`
+		DebugEnabled bool   `json:"debugEnabled"`
 	} `json:"logging"`
 	Discovery struct {
 		HostIP           string `json:"host_ip"`
