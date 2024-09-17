@@ -41,6 +41,8 @@ type ThinBroker struct {
 	entityId2Subcriptions map[string][]string
 	e2sub_lock            sync.RWMutex
 
+	isDebugEnabled bool
+
 	//counter of heartbeat
 	counter int64
 }
@@ -67,6 +69,8 @@ func (tb *ThinBroker) Start(cfg *Config) {
 
 	tb.myProfile.BID = tb.myEntityId
 	tb.myProfile.MyURL = cfg.GetExternalBrokerURL()
+
+	tb.isDebugEnabled = cfg.Logging.DebugEnabled
 
 	// register itself to the IoT discovery
 	tb.registerMyself()
@@ -203,7 +207,9 @@ func (tb *ThinBroker) getEntity(eid string) *ContextElement {
 }
 
 func (tb *ThinBroker) deleteEntity(eid string) error {
-	DEBUG.Println(" TO REMOVE ENTITY ", eid)
+	if tb.isDebugEnabled {
+		DEBUG.Println(" TO REMOVE ENTITY ", eid)
+	}
 
 	//remove it from the local entity map
 	tb.entities_lock.Lock()
@@ -444,17 +450,21 @@ func (tb *ThinBroker) notifySubscribers(ctxElem *ContextElement, correlator stri
 			originator := subscription.Subscriber.Correlator
 			if correlator != "" && originator != "" && correlator == originator {
 				beTheSame = true
-				DEBUG.Println("session ID from producer ", correlator, ", subscriber ", originator)
+				if tb.isDebugEnabled {
+					DEBUG.Println("session ID from producer ", correlator, ", subscriber ", originator)
+				}
 			}
 		}
 		tb.subscriptions_lock.RUnlock()
 
-		if beTheSame == true {
-			DEBUG.Println(" ======= producer and subscriber are the same ===========")
+		if beTheSame {
+			if tb.isDebugEnabled {
+				DEBUG.Println(" ======= producer and subscriber are the same ===========")
+			}
 			continue
 		}
 
-		if checkSelectedAttributes == true {
+		if checkSelectedAttributes {
 			selectedAttributes := make([]string, 0)
 
 			tb.subscriptions_lock.RLock()
@@ -533,8 +543,10 @@ func (tb *ThinBroker) sendReliableNotifyToSubscriber(elements []ContextElement, 
 	DestinationBroker := subscription.Subscriber.DestinationType
 	Tenant := subscription.Subscriber.Tenant
 
-	if subscription.Subscriber.RequireReliability == true && len(subscription.Subscriber.NotifyCache) > 0 {
-		DEBUG.Println("resend notify:  ", len(subscription.Subscriber.NotifyCache))
+	if subscription.Subscriber.RequireReliability && len(subscription.Subscriber.NotifyCache) > 0 {
+		if tb.isDebugEnabled {
+			DEBUG.Println("resend notify:  ", len(subscription.Subscriber.NotifyCache))
+		}
 		for _, pCtxElem := range subscription.Subscriber.NotifyCache {
 			elements = append(elements, *pCtxElem)
 		}
@@ -548,7 +560,9 @@ func (tb *ThinBroker) sendReliableNotifyToSubscriber(elements []ContextElement, 
 	err := postNotifyContext(elements, sid, subscriberURL, DestinationBroker, Tenant, tb.SecurityCfg)
 
 	if err != nil {
-		DEBUG.Println("NOTIFY is not received by the subscriber, ", subscriberURL)
+		if tb.isDebugEnabled {
+			DEBUG.Println("NOTIFY is not received by the subscriber, ", subscriberURL)
+		}
 
 		tb.subscriptions_lock.Lock()
 		if subscription, exist := tb.subscriptions[sid]; exist {

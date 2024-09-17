@@ -15,7 +15,7 @@ func (tb *ThinBroker) NGSIV1_UpdateContext(w rest.ResponseWriter, r *rest.Reques
 	updateCtxReq := UpdateContextRequest{}
 	err := r.DecodeJsonPayload(&updateCtxReq)
 	if err != nil {
-		DEBUG.Println("not able to decode the orion updates")
+		ERROR.Println("not able to decode the orion updates")
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

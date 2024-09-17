@@ -58,6 +58,8 @@ type Master struct {
 	prevNumOfTask int
 	counter_lock  sync.RWMutex
 
+	isDebugEnabled bool
+
 	//type of subscribed entities
 	subID2Type map[string]string
 }
@@ -69,6 +71,8 @@ func (master *Master) Start(configuration *Config) {
 	master.messageBus = configuration.GetMessageBus()
 	master.discoveryURL = configuration.GetDiscoveryURL()
 	master.designerURL = configuration.GetDesignerURL()
+
+	master.isDebugEnabled = configuration.Logging.DebugEnabled
 
 	master.workers = make(map[string]*WorkerProfile)
 
@@ -154,7 +158,7 @@ func (master *Master) onTimer() {
 	master.workerList_lock.Lock()
 	for workerID, worker := range master.workers {
 		duration := master.cfg.Worker.HeartbeatInterval * master.cfg.Worker.DetectionDuration
-		if worker.IsLive(duration) == false {
+		if worker.IsLive(duration) {
 			delete(master.workers, workerID)
 			INFO.Println("REMOVE worker " + workerID + " from the list")
 		}
@@ -265,43 +269,43 @@ func (master *Master) contextRegistration2EntityRegistration(entityId *EntityId,
 	return &entityRegistration
 }
 
-func (master *Master) contextRegistration2EntityRegistration_tbd(entityId *EntityId, ctxRegistration *ContextRegistration) *EntityRegistration {
-	entityRegistration := EntityRegistration{}
+// func (master *Master) contextRegistration2EntityRegistration_tbd(entityId *EntityId, ctxRegistration *ContextRegistration) *EntityRegistration {
+// 	entityRegistration := EntityRegistration{}
 
-	ctxObj := master.RetrieveContextEntity(entityId.ID)
-	if ctxObj == nil {
-		entityRegistration.ID = entityId.ID
-		entityRegistration.Type = entityId.Type
+// 	ctxObj := master.RetrieveContextEntity(entityId.ID)
+// 	if ctxObj == nil {
+// 		entityRegistration.ID = entityId.ID
+// 		entityRegistration.Type = entityId.Type
 
-		entityRegistration.AttributesList = make(map[string]ContextRegistrationAttribute)
-		entityRegistration.MetadataList = make(map[string]ContextMetadata)
-	} else {
-		entityRegistration.ID = ctxObj.Entity.ID
-		entityRegistration.Type = ctxObj.Entity.Type
+// 		entityRegistration.AttributesList = make(map[string]ContextRegistrationAttribute)
+// 		entityRegistration.MetadataList = make(map[string]ContextMetadata)
+// 	} else {
+// 		entityRegistration.ID = ctxObj.Entity.ID
+// 		entityRegistration.Type = ctxObj.Entity.Type
 
-		entityRegistration.AttributesList = make(map[string]ContextRegistrationAttribute)
-		for attrName, attrValue := range ctxObj.Attributes {
-			attributeRegistration := ContextRegistrationAttribute{}
-			attributeRegistration.Name = attrName
-			attributeRegistration.Type = attrValue.Type
-			entityRegistration.AttributesList[attrName] = attributeRegistration
-		}
+// 		entityRegistration.AttributesList = make(map[string]ContextRegistrationAttribute)
+// 		for attrName, attrValue := range ctxObj.Attributes {
+// 			attributeRegistration := ContextRegistrationAttribute{}
+// 			attributeRegistration.Name = attrName
+// 			attributeRegistration.Type = attrValue.Type
+// 			entityRegistration.AttributesList[attrName] = attributeRegistration
+// 		}
 
-		entityRegistration.MetadataList = make(map[string]ContextMetadata)
-		for metaname, ctxmeta := range ctxObj.Metadata {
-			cm := ContextMetadata{}
-			cm.Name = metaname
-			cm.Type = ctxmeta.Type
-			cm.Value = ctxmeta.Value
+// 		entityRegistration.MetadataList = make(map[string]ContextMetadata)
+// 		for metaname, ctxmeta := range ctxObj.Metadata {
+// 			cm := ContextMetadata{}
+// 			cm.Name = metaname
+// 			cm.Type = ctxmeta.Type
+// 			cm.Value = ctxmeta.Value
 
-			entityRegistration.MetadataList[metaname] = cm
-		}
-	}
+// 			entityRegistration.MetadataList[metaname] = cm
+// 		}
+// 	}
 
-	entityRegistration.ProvidingApplication = ctxRegistration.ProvidingApplication
+// 	entityRegistration.ProvidingApplication = ctxRegistration.ProvidingApplication
 
-	return &entityRegistration
-}
+// 	return &entityRegistration
+// }
 
 func (master *Master) subscribeContextAvailability(availabilitySubscription *SubscribeContextAvailabilityRequest) string {
 	availabilitySubscription.Reference = master.myURL + "/notifyContextAvailability"
@@ -324,9 +328,7 @@ func (master *Master) unsubscribeContextAvailability(sid string) {
 	}
 }
 
-//
 // to deal with the communication between master and workers via rabbitmq
-//
 func (master *Master) Process(msg *RecvMessage) error {
 	switch msg.Type {
 	case "WORKER_JOIN":
@@ -467,9 +469,7 @@ func (master *Master) RemoveInputEntity(flowInfo FlowInfo) {
 	master.communicator.Publish(&taskMsg)
 }
 
-//
 // the shared functions for function manager and topology manager to call
-//
 func (master *Master) RetrieveContextEntity(eid string) *ContextObject {
 	query := QueryContextRequest{}
 
@@ -507,9 +507,7 @@ func (master *Master) GetStatus(w rest.ResponseWriter, r *rest.Request) {
 	w.WriteJson(profile)
 }
 
-//
 // to select the worker that is closest to the given points
-//
 func (master *Master) SelectWorker(locations []Point) string {
 	master.workerList_lock.RLock()
 	defer master.workerList_lock.RUnlock()
@@ -527,7 +525,10 @@ func (master *Master) SelectWorker(locations []Point) string {
 	closestTotalDistance := uint64(math.MaxUint64)
 	for _, worker := range master.workers {
 		// if this worker is already overloaded, check the next one
-		if worker.IsOverloaded() == true {
+		if worker.IsOverloaded() {
+			master.isDebugEnabled {
+				DEBUG.Println("Worker", worker.WID, " has reached its capacity of ", worker.Capacity, " with ", worker.Workload, " tasks running")
+			}
 			continue
 		}
 
@@ -555,9 +556,7 @@ func (master *Master) SelectWorker(locations []Point) string {
 	return closestWorkerID
 }
 
-//
 // query the topology from Designer based on the given name
-//
 func (master *Master) getTopologyByName(name string) *Topology {
 	designerURL := fmt.Sprintf("%s/topology/%s", master.cfg.GetDesignerURL(), name)
 	fmt.Println(designerURL)
@@ -598,9 +597,7 @@ func (master *Master) getTopologyByName(name string) *Topology {
 	return &topology
 }
 
-//
 // to select the right docker image of an operator for the selected worker
-//
 func (master *Master) DetermineDockerImage(operatorName string, wID string) string {
 	master.workerList_lock.RLock()
 	wProfile := master.workers[wID]

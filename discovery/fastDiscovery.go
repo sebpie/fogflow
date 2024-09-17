@@ -50,6 +50,8 @@ type FastDiscovery struct {
 	delayStoreOnFile int
 	storeOnDisk      bool
 
+	isDebugEnabled bool
+
 	// lock to control the update subscriptions in database
 	subscriptionsDbLock               sync.RWMutex
 	storeSubscriptionsOnFileScheduled bool
@@ -72,6 +74,7 @@ func (fd *FastDiscovery) Init(config *Config) {
 	fd.storeSubscriptionsOnFileScheduled = false
 	fd.storeBrokersOnFileScheduled = false
 	fd.storeOnDisk = config.Discovery.StoreOnDisk
+	fd.isDebugEnabled = config.Logging.DebugEnabled
 	//INFO.Println("config.Discovery.DelayStoreRegistrationsOnFile ", config.Discovery.DelayStoreStoreOnFile)
 	fd.delayStoreOnFile = config.Discovery.DelayStoreOnFile
 
@@ -281,7 +284,7 @@ func (fd *FastDiscovery) SubscribeContextAvailability(w rest.ResponseWriter, r *
 	go fd.handleSubscribeCtxAvailability(&subscribeCtxAvailabilityReq)
 }
 
-//receive updateContextAvailability for subscription
+// receive updateContextAvailability for subscription
 func (fd *FastDiscovery) UpdateLDContextAvailability(w rest.ResponseWriter, r *rest.Request) {
 	sid := r.PathParam("sid")
 	subscribeCtxAvailabilityReq := SubscribeContextAvailabilityRequest{}

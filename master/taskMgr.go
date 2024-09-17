@@ -99,7 +99,7 @@ func (gf *GroupInfo) GetHash() string {
 	sortedpairs := make([]*KVPair, 0)
 
 	for k, v := range *gf {
-		DEBUG.Printf("group k: %s, v: %+v\r\n", k, v)
+		DEBUG.Println("group k: %s, v: %+v\r\n", k, v)
 
 		kvpair := KVPair{}
 		kvpair.Key = k
@@ -149,9 +149,7 @@ func (flow *FogFlow) Init() {
 	flow.DeploymentPlan = make(map[string]*ScheduledTaskInstance)
 }
 
-//
 // to update the execution plan based on the changes of registered context availability
-//
 func (flow *FogFlow) MetadataDrivenTaskOrchestration(subID string, entityAction string, registredEntity *EntityRegistration, workerSelection ProximityWorkerSelectionFn) []*DeploymentAction {
 	if _, exist := flow.Subscriptions[subID]; exist == false {
 		DEBUG.Println(subID, "subscription does not exist any more")
@@ -196,10 +194,8 @@ func (flow *FogFlow) MetadataDrivenTaskOrchestration(subID string, entityAction 
 	return nil
 }
 
-//
 // to check if we already received some context registration
 // for all required and subscribed context availability
-//
 func (flow *FogFlow) checkInputAvailability() bool {
 	for _, inputSubscription := range flow.Subscriptions {
 		if len(inputSubscription.ReceivedEntityRegistrations) == 0 {
@@ -210,9 +206,7 @@ func (flow *FogFlow) checkInputAvailability() bool {
 	return true
 }
 
-//
 // check the available of all required input stream for a specific task instance
-//
 func (flow *FogFlow) checkInputsOfTaskInstance(taskCfg *TaskConfig) bool {
 	INFO.Println(taskCfg)
 	INFO.Println(flow.Intent.TaskObject)
@@ -251,13 +245,22 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 			for _, entity := range entitiesList {
 				newInput := true
 				for _, input := range task.Inputs {
-					if input.ID == entity.ID {
-						newInput = false
-						break
+					// If (input.ID != "") it means that (selector.Scoped || selector.GroupBy == "EntityID")
+					// see later in this file why that
+					if input.ID != "" {
+						if input.ID == entity.ID {
+							newInput = false
+							break
+						}
+					} else {
+						if input.Type == entity.Type {
+							newInput = false
+							break
+						}
 					}
 				}
 
-				if newInput == true {
+				if newInput {
 					DEBUG.Printf("new input %+v to task %+v\r\n", entity, task)
 
 					inputEntity := InputEntity{}
@@ -287,7 +290,7 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 					// check if the location in this input entity is changed
 					locationChanged := false
 					for i := 0; i < len(task.Inputs); i++ {
-						if task.Inputs[i].ID == entity.ID && task.Inputs[i].Location.IsEqual(&entity.Location) == false {
+						if task.Inputs[i].ID == entity.ID && task.Inputs[i].Location.IsEqual(&entity.Location) {
 							locationChanged = true
 							DEBUG.Println("[location changed] entity: ", entity.ID)
 							// update the input entities with the new location
@@ -298,7 +301,7 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 
 					// if the location is changed, calculate the new optimal worker assignment
 					newOptimalWorkerID := task.WorkerID
-					if locationChanged == true {
+					if locationChanged {
 						locations := make([]Point, 0)
 						for _, input := range task.Inputs {
 							locations = append(locations, input.Location)
@@ -314,11 +317,11 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 					if newOptimalWorkerID != task.WorkerID {
 						INFO.Println("[Task migration]:", task.TaskID, " migrated from ", task.WorkerID, " to ", newOptimalWorkerID)
 
-						if (task.WorkerID != ""){
+						if task.WorkerID != "" {
 							removeTaskAction := flow.removeExistingTask(task)
 							deploymentActions = append(deploymentActions, removeTaskAction)
 						}
-						
+
 						task.WorkerID = newOptimalWorkerID
 
 						addTaskAction := flow.addNewTask(task)
@@ -429,7 +432,7 @@ func (flow *FogFlow) removeExecutionPlan(entityID string, inputSubscription *Inp
 			task.removeInput(entityID)
 
 			//if any of the input streams is delete, the task will be terminated
-			if flow.checkInputsOfTaskInstance(task) == false {
+			if flow.checkInputsOfTaskInstance(task) {
 				// remove this task
 				DEBUG.Printf("removing an existing task %+v\r\n", task)
 
@@ -505,7 +508,7 @@ func (flow *FogFlow) updateGroupedKeyValueTable(sub *InputSubscription, entityID
 	if groupKey == "ALL" {
 		key := name + "-" + groupKey
 		_, exist := flow.UniqueKeys[key]
-		if exist == false {
+		if exist {
 			flow.UniqueKeys[key] = make([]interface{}, 0)
 			flow.UniqueKeys[key] = append(flow.UniqueKeys[key], "ALL")
 		}
@@ -534,7 +537,7 @@ func (flow *FogFlow) updateGroupedKeyValueTable(sub *InputSubscription, entityID
 				}
 			}
 
-			if inList == false {
+			if inList {
 				flow.UniqueKeys[key] = append(flow.UniqueKeys[key], value)
 			}
 		} else { // create a new key
@@ -631,10 +634,25 @@ func (flow *FogFlow) searchRelevantEntities(group *GroupInfo, updatedEntityID st
 		}
 
 		// filtering
+	entityloop:
 		for _, entityRegistration := range inputSub.ReceivedEntityRegistrations {
-			if entityRegistration.IsMatched(restrictions) == true {
+			if entityRegistration.IsMatched(restrictions) {
 				inputEntity := InputEntity{}
-				inputEntity.ID = entityRegistration.ID
+
+				// The following if is to check if it is really necessary to subscribe for each matching entity (that might thousands)
+				// it is necessary it is grouped per entityID
+				// and it is necessary if it is scoped because only the entities within the scope
+				if selector.Scoped || selector.GroupBy == "EntityID" {
+					inputEntity.ID = entityRegistration.ID
+				} else {
+					// if we are here, it is because we want to subscribe per type and not care the entityId
+					// In this way the subscription will be minimal and faster
+					for _, entity := range entities {
+						if inputEntity.Type == entity.Type {
+							continue entityloop
+						}
+					}
+				}
 				inputEntity.Type = entityRegistration.Type
 
 				inputEntity.AttributeList = selector.SelectedAttributes
@@ -692,9 +710,7 @@ func (tMgr *TaskMgr) Init() {
 	tMgr.subID2FogFunc = make(map[string]string)
 }
 
-//
 // deal with received task intents
-//
 func (tMgr *TaskMgr) handleTaskIntentUpdate(intentCtxObj *ContextObject) {
 	INFO.Println("handle taskintent update")
 	INFO.Println(intentCtxObj)
@@ -859,15 +875,13 @@ func (tMgr *TaskMgr) selector2Subscription(inputSelector *InputStreamConfig, geo
 	return subscriptionId
 }
 
-//
 // the main function to deal with data-driven and context aware task orchestration
-//
 func (tMgr *TaskMgr) HandleContextAvailabilityUpdate(subID string, entityAction string, entityRegistration *EntityRegistration) {
 	INFO.Println("[Registration update]: ", subID, entityAction, entityRegistration.ID)
 
 	tMgr.subID2FogFunc_lock.RLock()
 	funcName, fogFunctionExist := tMgr.subID2FogFunc[subID]
-	if fogFunctionExist == false {
+	if fogFunctionExist {
 		INFO.Println("this subscripption is not issued by me")
 		tMgr.subID2FogFunc_lock.RUnlock()
 		return
@@ -879,7 +893,7 @@ func (tMgr *TaskMgr) HandleContextAvailabilityUpdate(subID string, entityAction 
 	defer tMgr.fogFlows_lock.Unlock()
 
 	fogflow, fogFlowExist := tMgr.fogFlows[funcName]
-	if fogFlowExist == false {
+	if fogFlowExist {
 		INFO.Println("no flow established for this function: ", funcName)
 		return
 	}

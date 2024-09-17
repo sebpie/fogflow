@@ -25,6 +25,9 @@ func (tb *ThinBroker) NGSILD_UpdateContext(w rest.ResponseWriter, r *rest.Reques
 
 	// DEBUG.Println(updateCtxReq)
 
+	// check and add the "Fiware-Correlator" header into the update message
+	updateCtxReq.Correlator = r.Header.Get("Fiware-Correlator")
+
 	if numUpdates > 0 {
 		tb.handleInternalUpdateContext(&updateCtxReq)
 	}
@@ -45,6 +48,9 @@ func (tb *ThinBroker) NGSILD_CreateEntity(w rest.ResponseWriter, r *rest.Request
 
 	updateCtxReq := UpdateContextRequest{}
 	numUpdates := updateCtxReq.ReadFromNGSILD(ngsildUpsert)
+
+	// check and add the "Fiware-Correlator" header into the update message
+	updateCtxReq.Correlator = r.Header.Get("Fiware-Correlator")
 
 	// DEBUG.Println(updateCtxReq)
 
@@ -152,6 +158,9 @@ func (tb *ThinBroker) NGSILD_NotifyContext(w rest.ResponseWriter, r *rest.Reques
 
 		updateCtxReq := UpdateContextRequest{}
 		numUpdates := updateCtxReq.ReadFromNGSILD(ngsildUpsert)
+
+		// check and add the "Fiware-Correlator" header into the update message
+		updateCtxReq.Correlator = r.Header.Get("Fiware-Correlator")
 
 		if numUpdates > 0 {
 			tb.handleInternalUpdateContext(&updateCtxReq)
