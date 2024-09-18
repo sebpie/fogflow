@@ -526,7 +526,7 @@ func (master *Master) SelectWorker(locations []Point) string {
 	for _, worker := range master.workers {
 		// if this worker is already overloaded, check the next one
 		if worker.IsOverloaded() {
-			master.isDebugEnabled {
+			if master.isDebugEnabled {
 				DEBUG.Println("Worker", worker.WID, " has reached its capacity of ", worker.Capacity, " with ", worker.Workload, " tasks running")
 			}
 			continue
