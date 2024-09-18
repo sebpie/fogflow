@@ -158,9 +158,9 @@ func (master *Master) onTimer() {
 	master.workerList_lock.Lock()
 	for workerID, worker := range master.workers {
 		duration := master.cfg.Worker.HeartbeatInterval * master.cfg.Worker.DetectionDuration
-		if worker.IsLive(duration) {
+		if !worker.IsLive(duration) {
 			delete(master.workers, workerID)
-			INFO.Println("REMOVE worker " + workerID + " from the list")
+			INFO.Println("REMOVE worker " + workerID + " from the list, because worker heartbeat " + strconv.Itoa(duration) + " is not live")
 		}
 	}
 
