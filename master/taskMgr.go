@@ -290,7 +290,7 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 					// check if the location in this input entity is changed
 					locationChanged := false
 					for i := 0; i < len(task.Inputs); i++ {
-						if task.Inputs[i].ID == entity.ID && task.Inputs[i].Location.IsEqual(&entity.Location) {
+						if task.Inputs[i].ID == entity.ID && !(task.Inputs[i].Location.IsEqual(&entity.Location)) {
 							locationChanged = true
 							DEBUG.Println("[location changed] entity: ", entity.ID)
 							// update the input entities with the new location
@@ -432,7 +432,7 @@ func (flow *FogFlow) removeExecutionPlan(entityID string, inputSubscription *Inp
 			task.removeInput(entityID)
 
 			//if any of the input streams is delete, the task will be terminated
-			if flow.checkInputsOfTaskInstance(task) {
+			if !flow.checkInputsOfTaskInstance(task) {
 				// remove this task
 				DEBUG.Printf("removing an existing task %+v\r\n", task)
 
@@ -508,7 +508,7 @@ func (flow *FogFlow) updateGroupedKeyValueTable(sub *InputSubscription, entityID
 	if groupKey == "ALL" {
 		key := name + "-" + groupKey
 		_, exist := flow.UniqueKeys[key]
-		if exist {
+		if !exist {
 			flow.UniqueKeys[key] = make([]interface{}, 0)
 			flow.UniqueKeys[key] = append(flow.UniqueKeys[key], "ALL")
 		}
@@ -537,7 +537,7 @@ func (flow *FogFlow) updateGroupedKeyValueTable(sub *InputSubscription, entityID
 				}
 			}
 
-			if inList {
+			if !inList {
 				flow.UniqueKeys[key] = append(flow.UniqueKeys[key], value)
 			}
 		} else { // create a new key
@@ -881,7 +881,7 @@ func (tMgr *TaskMgr) HandleContextAvailabilityUpdate(subID string, entityAction 
 
 	tMgr.subID2FogFunc_lock.RLock()
 	funcName, fogFunctionExist := tMgr.subID2FogFunc[subID]
-	if fogFunctionExist {
+	if !fogFunctionExist {
 		INFO.Println("this subscripption is not issued by me")
 		tMgr.subID2FogFunc_lock.RUnlock()
 		return
@@ -893,7 +893,7 @@ func (tMgr *TaskMgr) HandleContextAvailabilityUpdate(subID string, entityAction 
 	defer tMgr.fogFlows_lock.Unlock()
 
 	fogflow, fogFlowExist := tMgr.fogFlows[funcName]
-	if fogFlowExist {
+	if !fogFlowExist {
 		INFO.Println("no flow established for this function: ", funcName)
 		return
 	}
