@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -227,7 +226,7 @@ func (c *Config) GetMessageBus() string {
 var logTargets map[string]io.Writer = map[string]io.Writer{
 	"stdout":  os.Stdout,
 	"stderr":  os.Stderr,
-	"discard": ioutil.Discard,
+	"discard": io.Discard,
 }
 
 func (c *Config) SetLogTargets() {
@@ -238,7 +237,7 @@ func (c *Config) SetLogTargets() {
 	INFO = log.New(target, "INFO: ", log.Ldate|log.Ltime)
 	target, ok = logTargets[c.Logging.Protocol]
 	if !ok {
-		target = ioutil.Discard
+		target = io.Discard
 	}
 	PROTOCOL = log.New(target, "PROTOCOL: ", log.Ldate|log.Ltime)
 	target, ok = logTargets[c.Logging.Errlog]
@@ -248,7 +247,7 @@ func (c *Config) SetLogTargets() {
 	ERROR = log.New(target, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 	target, ok = logTargets[c.Logging.Debug]
 	if !ok {
-		target = ioutil.Discard
+		target = io.Discard
 	}
 	DEBUG = log.New(target, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
 }

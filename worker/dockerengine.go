@@ -59,12 +59,11 @@ func (dockerengine *DockerEngine) Init(cfg *Config) bool {
 func (dockerengine *DockerEngine) PullImage(dockerImage string) (string, error) {
 	auth := docker.AuthConfiguration{}
 
-	if dockerengine.workerCfg.Worker.Registry.IsConfigured() == true {
+	if dockerengine.workerCfg.Worker.Registry.IsConfigured() {
 		auth.Username = dockerengine.workerCfg.Worker.Registry.Username
 		auth.Password = dockerengine.workerCfg.Worker.Registry.Password
 		auth.Email = dockerengine.workerCfg.Worker.Registry.Email
 		auth.ServerAddress = dockerengine.workerCfg.Worker.Registry.ServerAddress
-		dockerImage = dockerImage
 	}
 
 	DEBUG.Printf("options : %+v\r\n", auth)
@@ -134,7 +133,7 @@ func (dockerengine *DockerEngine) StartTask(task *ScheduledTaskInstance, brokerU
 		dockerImage, "] with parameters [", task.Parameters, "]")
 
 	// first check the image locally
-	if dockerengine.InspectImage(dockerImage) == false {
+	if !dockerengine.InspectImage(dockerImage) {
 		// if the image does not exist locally, try to fetch it from docker hub
 		_, pullError := dockerengine.PullImage(dockerImage)
 		if pullError != nil {

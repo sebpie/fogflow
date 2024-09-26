@@ -99,7 +99,9 @@ func (gf *GroupInfo) GetHash() string {
 	sortedpairs := make([]*KVPair, 0)
 
 	for k, v := range *gf {
-		DEBUG.Printf("group k: %s, v: %+v\r\n", k, v)
+		if fmt.Sprintf("%T", DEBUG.Writer()) != "io.discard" {
+			DEBUG.Printf("group k: %s, v: %+v\r\n", k, v)
+		}
 
 		kvpair := KVPair{}
 		kvpair.Key = k
@@ -118,7 +120,7 @@ func (gf *GroupInfo) GetHash() string {
 		}
 	}
 
-	// generate the has code
+	// generate the hash code
 	text := ""
 	for _, pair := range sortedpairs {
 		temp, _ := json.Marshal(pair.Value)
@@ -150,41 +152,49 @@ func (flow *FogFlow) Init() {
 }
 
 // to update the execution plan based on the changes of registered context availability
-func (flow *FogFlow) MetadataDrivenTaskOrchestration(subID string, entityAction string, registredEntity *EntityRegistration, workerSelection ProximityWorkerSelectionFn) []*DeploymentAction {
-	if _, exist := flow.Subscriptions[subID]; exist == false {
+func (flow *FogFlow) MetadataDrivenTaskOrchestration(subID string, entityAction string, registeredEntity *EntityRegistration, workerSelection ProximityWorkerSelectionFn) []*DeploymentAction {
+	if _, exist := flow.Subscriptions[subID]; !exist {
 		DEBUG.Println(subID, "subscription does not exist any more")
 		return nil
 	}
 
 	inputSubscription := flow.Subscriptions[subID]
-	entityID := registredEntity.ID
+	entityID := registeredEntity.ID
+	if inputSubscription.InputSelector.IsSimpleByType() {
+		// This check is to see if the selection is only type (no entityId, no scope)
+		entityID = "*"
+	}
 	DEBUG.Println(entityAction, " entity ", entityID, "from Subscription ", subID)
 	switch entityAction {
 	case "CREATE", "UPDATE":
 		//update context availability
 		if _, exist := inputSubscription.ReceivedEntityRegistrations[entityID]; exist {
-			existEntityRegistration := inputSubscription.ReceivedEntityRegistrations[entityID]
-			existEntityRegistration.Update(registredEntity)
+			if !inputSubscription.InputSelector.IsSimpleByType() {
+				// This check is to see if the selection is only type (no entityId, no scope)
+				// if it is not the case, then the registeredEntity is important
+				existEntityRegistration := inputSubscription.ReceivedEntityRegistrations[entityID]
+				existEntityRegistration.Update(registeredEntity)
+			}
 		} else {
-			inputSubscription.ReceivedEntityRegistrations[entityID] = registredEntity
+			inputSubscription.ReceivedEntityRegistrations[entityID] = registeredEntity
 		}
 
 		//update the group key-value table for orchestration
 		flow.updateGroupedKeyValueTable(inputSubscription, entityID)
 
 		//check what needs to be instantiated when all required inputs are available
-		if flow.checkInputAvailability() == true {
+		if flow.checkInputAvailability() {
 			return flow.expandExecutionPlan(entityID, inputSubscription, workerSelection)
 		}
 
 	case "DELETE":
 		_, exist := inputSubscription.ReceivedEntityRegistrations[entityID]
-		if exist == false {
-			INFO.Println("entity registration has not arrived yet")
+		if !exist {
+			INFO.Println("entity registration has not arrived yet, entityId: ", registeredEntity.ID)
 			return nil
 		}
 
-		if flow.checkInputAvailability() == true {
+		if flow.checkInputAvailability() {
 			return flow.removeExecutionPlan(entityID, inputSubscription)
 		}
 
@@ -242,12 +252,13 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 		// check if the associated task instance is already created
 		if task, exist := flow.ExecutionPlan[hashID]; exist {
 			entitiesList := flow.searchRelevantEntities(&group, entityID)
+			DEBUG.Println("[entitiesList]: ", entitiesList)
 			for _, entity := range entitiesList {
 				newInput := true
 				for _, input := range task.Inputs {
+					inputSubscription.InputSelector.IsSimpleByType()
 					// If (input.ID != "") it means that (selector.Scoped || selector.GroupBy == "EntityID")
-					// see later in this file why that
-					if input.ID != "" {
+					if !inputSubscription.InputSelector.IsSimpleByType() {
 						if input.ID == entity.ID {
 							newInput = false
 							break
@@ -289,6 +300,7 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 				} else {
 					// check if the location in this input entity is changed
 					locationChanged := false
+					DEBUG.Printf("Length of Task Input %d", len(task.Inputs))
 					for i := 0; i < len(task.Inputs); i++ {
 						if task.Inputs[i].ID == entity.ID && !(task.Inputs[i].Location.IsEqual(&entity.Location)) {
 							locationChanged = true
@@ -503,18 +515,18 @@ func (flow *FogFlow) removeGroupKeyFromTable(groupInfo *GroupInfo) {
 
 func (flow *FogFlow) updateGroupedKeyValueTable(sub *InputSubscription, entityID string) {
 	selector := sub.InputSelector
-	name := selector.EntityType
+	entityType := selector.EntityType
 	groupKey := selector.GroupBy
 
 	if groupKey == "ALL" {
-		key := name + "-" + groupKey
+		key := entityType + "-" + groupKey
 		_, exist := flow.UniqueKeys[key]
 		if !exist {
 			flow.UniqueKeys[key] = make([]interface{}, 0)
 			flow.UniqueKeys[key] = append(flow.UniqueKeys[key], "ALL")
 		}
 	} else {
-		key := name + "-" + groupKey
+		key := entityType + "-" + groupKey
 		entity := sub.ReceivedEntityRegistrations[entityID]
 
 		var value interface{}
@@ -637,15 +649,16 @@ func (flow *FogFlow) searchRelevantEntities(group *GroupInfo, updatedEntityID st
 		// filtering
 	entityloop:
 		for _, entityRegistration := range inputSub.ReceivedEntityRegistrations {
+
+			DEBUG.Println("entityRegistration", entityRegistration)
+
 			if entityRegistration.IsMatched(restrictions) {
 				inputEntity := InputEntity{}
 
 				// The following if is to check if it is really necessary to subscribe for each matching entity (that might thousands)
 				// it is necessary it is grouped per entityID
 				// and it is necessary if it is scoped because only the entities within the scope
-				if selector.Scoped || selector.GroupBy == "EntityID" {
-					inputEntity.ID = entityRegistration.ID
-				} else {
+				if selector.IsSimpleByType() {
 					// if we are here, it is because we want to subscribe per type and not care the entityId
 					// In this way the subscription will be minimal and faster
 					for _, entity := range entities {
@@ -653,6 +666,8 @@ func (flow *FogFlow) searchRelevantEntities(group *GroupInfo, updatedEntityID st
 							continue entityloop
 						}
 					}
+				} else {
+					inputEntity.ID = entityRegistration.ID
 				}
 				inputEntity.Type = entityRegistration.Type
 
@@ -738,7 +753,7 @@ func (tMgr *TaskMgr) handleTaskIntent(taskIntent *TaskIntent) {
 }
 
 func (tMgr *TaskMgr) handleSynchronousTaskIntent(taskIntent *TaskIntent) {
-	INFO.Println("[SYNC]orchestrating task intent: %+v", taskIntent)
+	INFO.Printf("[SYNC]orchestrating task intent: %+v", taskIntent)
 
 	fogflow := FogFlow{}
 
@@ -859,13 +874,13 @@ func (tMgr *TaskMgr) selector2Subscription(inputSelector *InputStreamConfig, geo
 	// apply the required attributes
 	availabilitySubscription.Attributes = make([]string, 0)
 	for _, attribute := range inputSelector.SelectedAttributes {
-		if strings.EqualFold(attribute, "all") == false {
+		if !strings.EqualFold(attribute, "all") {
 			availabilitySubscription.Attributes = append(availabilitySubscription.Attributes, attribute)
 		}
 	}
 
 	// apply the required geoscope
-	if inputSelector.Scoped == true {
+	if inputSelector.Scoped {
 		availabilitySubscription.Restriction.Scopes = append(availabilitySubscription.Restriction.Scopes, geoscope)
 	}
 
@@ -883,7 +898,7 @@ func (tMgr *TaskMgr) HandleContextAvailabilityUpdate(subID string, entityAction 
 	tMgr.subID2FogFunc_lock.RLock()
 	funcName, fogFunctionExist := tMgr.subID2FogFunc[subID]
 	if !fogFunctionExist {
-		INFO.Println("this subscripption is not issued by me")
+		INFO.Println("this subscription is not issued by me")
 		tMgr.subID2FogFunc_lock.RUnlock()
 		return
 	}
@@ -902,7 +917,9 @@ func (tMgr *TaskMgr) HandleContextAvailabilityUpdate(subID string, entityAction 
 	// derive the deployment actions according to the received registration
 	deploymentActions := fogflow.MetadataDrivenTaskOrchestration(subID, entityAction, entityRegistration, tMgr.master.SelectWorker)
 	if deploymentActions == nil || len(deploymentActions) == 0 {
-		DEBUG.Println("nothing is triggered!!!")
+		if tMgr.master.isDebugEnabled {
+			DEBUG.Println("nothing is triggered!!!")
+		}
 		return
 	}
 
