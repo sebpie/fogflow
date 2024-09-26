@@ -66,13 +66,17 @@ func (dockerengine *DockerEngine) PullImage(dockerImage string) (string, error) 
 		auth.ServerAddress = dockerengine.workerCfg.Worker.Registry.ServerAddress
 	}
 
-	DEBUG.Printf("options : %+v\r\n", auth)
+	if LoggerIsEnabled(DEBUG) {
+		DEBUG.Printf("options : %+v\r\n", auth)
+	}
 
 	opts := docker.PullImageOptions{
 		Repository: dockerImage,
 	}
 
-	DEBUG.Printf("options : %+v\r\n", opts)
+	if LoggerIsEnabled(DEBUG) {
+		DEBUG.Printf("options : %+v\r\n", opts)
+	}
 
 	err := dockerengine.client.PullImage(opts, auth)
 	if err != nil {
@@ -228,7 +232,9 @@ func (dockerengine *DockerEngine) StartTask(task *ScheduledTaskInstance, brokerU
 		mount.ReadOnly = true
 		mount.Type = "bind"
 
-		DEBUG.Println("mounting configuration ", mount)
+		if LoggerIsEnabled(DEBUG) {
+			DEBUG.Println("mounting configuration ", mount)
+		}
 
 		hostConfig.Mounts = make([]docker.HostMount, 0)
 		hostConfig.Mounts = append(hostConfig.Mounts, mount)

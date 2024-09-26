@@ -41,8 +41,6 @@ type ThinBroker struct {
 	entityId2Subcriptions map[string][]string
 	e2sub_lock            sync.RWMutex
 
-	isDebugEnabled bool
-
 	//counter of heartbeat
 	counter int64
 }
@@ -69,8 +67,6 @@ func (tb *ThinBroker) Start(cfg *Config) {
 
 	tb.myProfile.BID = tb.myEntityId
 	tb.myProfile.MyURL = cfg.GetExternalBrokerURL()
-
-	tb.isDebugEnabled = cfg.Logging.DebugEnabled
 
 	// register itself to the IoT discovery
 	tb.registerMyself()
@@ -207,7 +203,7 @@ func (tb *ThinBroker) getEntity(eid string) *ContextElement {
 }
 
 func (tb *ThinBroker) deleteEntity(eid string) error {
-	if tb.isDebugEnabled {
+	if LoggerIsEnabled(DEBUG) {
 		DEBUG.Println(" TO REMOVE ENTITY ", eid)
 	}
 
@@ -450,7 +446,7 @@ func (tb *ThinBroker) notifySubscribers(ctxElem *ContextElement, correlator stri
 			originator := subscription.Subscriber.Correlator
 			if correlator != "" && originator != "" && correlator == originator {
 				beTheSame = true
-				if tb.isDebugEnabled {
+				if LoggerIsEnabled(DEBUG) {
 					DEBUG.Println("session ID from producer ", correlator, ", subscriber ", originator)
 				}
 			}
@@ -458,7 +454,7 @@ func (tb *ThinBroker) notifySubscribers(ctxElem *ContextElement, correlator stri
 		tb.subscriptions_lock.RUnlock()
 
 		if beTheSame {
-			if tb.isDebugEnabled {
+			if LoggerIsEnabled(DEBUG) {
 				DEBUG.Println(" ======= producer and subscriber are the same ===========")
 			}
 			continue
@@ -544,7 +540,7 @@ func (tb *ThinBroker) sendReliableNotifyToSubscriber(elements []ContextElement, 
 	Tenant := subscription.Subscriber.Tenant
 
 	if subscription.Subscriber.RequireReliability && len(subscription.Subscriber.NotifyCache) > 0 {
-		if tb.isDebugEnabled {
+		if LoggerIsEnabled(DEBUG) {
 			DEBUG.Println("resend notify:  ", len(subscription.Subscriber.NotifyCache))
 		}
 		for _, pCtxElem := range subscription.Subscriber.NotifyCache {
@@ -560,7 +556,7 @@ func (tb *ThinBroker) sendReliableNotifyToSubscriber(elements []ContextElement, 
 	err := postNotifyContext(elements, sid, subscriberURL, DestinationBroker, Tenant, tb.SecurityCfg)
 
 	if err != nil {
-		if tb.isDebugEnabled {
+		if LoggerIsEnabled(DEBUG) {
 			DEBUG.Println("NOTIFY is not received by the subscriber, ", subscriberURL)
 		}
 
@@ -685,7 +681,7 @@ func (tb *ThinBroker) handleNGSI9Notify(mainSubID string, notifyContextAvailabil
 		action = "DELETE"
 	}
 
-	if tb.isDebugEnabled {
+	if LoggerIsEnabled(DEBUG) {
 		DEBUG.Println(action, " subID ", mainSubID, " subscription isSimpleByType ", tb.subscriptions[mainSubID].IsSimpleByType())
 		DEBUG.Println(tb.entityId2Subcriptions)
 	}
@@ -694,7 +690,7 @@ func (tb *ThinBroker) handleNGSI9Notify(mainSubID string, notifyContextAvailabil
 		registration := registrationResp.ContextRegistration
 		for _, eid := range registration.EntityIdList {
 
-			if tb.isDebugEnabled {
+			if LoggerIsEnabled(DEBUG) {
 				DEBUG.Println("===> ", eid, " , ", mainSubID)
 			}
 

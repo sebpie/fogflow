@@ -58,8 +58,6 @@ type Master struct {
 	prevNumOfTask int
 	counter_lock  sync.RWMutex
 
-	isDebugEnabled bool
-
 	//type of subscribed entities
 	subID2Type map[string]string
 }
@@ -71,8 +69,6 @@ func (master *Master) Start(configuration *Config) {
 	master.messageBus = configuration.GetMessageBus()
 	master.discoveryURL = configuration.GetDiscoveryURL()
 	master.designerURL = configuration.GetDesignerURL()
-
-	master.isDebugEnabled = configuration.Logging.DebugEnabled
 
 	master.workers = make(map[string]*WorkerProfile)
 
@@ -526,7 +522,7 @@ func (master *Master) SelectWorker(locations []Point) string {
 	for _, worker := range master.workers {
 		// if this worker is already overloaded, check the next one
 		if worker.IsOverloaded() {
-			if master.isDebugEnabled {
+			if LoggerIsEnabled(DEBUG) {
 				DEBUG.Println("Worker", worker.WID, " has reached its capacity of ", worker.Capacity, " with ", worker.Workload, " tasks running")
 			}
 			continue
