@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -131,7 +131,9 @@ func (e *Executor) LaunchTask(task *ScheduledTaskInstance) bool {
 	for _, inputStream := range task.Inputs {
 		subID, err := e.subscribeInputStream(refURL, task.ID, &inputStream)
 		if err == nil {
-			DEBUG.Println("===========subID = ", subID)
+			if LoggerIsEnabled(DEBUG) {
+				DEBUG.Println("===========subID = ", subID)
+			}
 			taskCtx.Subscriptions = append(taskCtx.Subscriptions, subID)
 			taskCtx.EntityID2SubID[inputStream.ID] = subID
 		} else {
@@ -210,14 +212,14 @@ func (e *Executor) configurateTask(port string, commands []interface{}) bool {
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	INFO.Println("task on port ", port, " has been configured with parameters ", jsonText)
 	INFO.Println("response Body:", string(body))
 
 	return true
 }
 
-func (e *Executor) registerTask(task *ScheduledTaskInstance, portNum string, containerID string) {
+func (e *Executor) registerTask(task *ScheduledTaskInstance, portNum string) {
 	ctxObj := ContextObject{}
 
 	ctxObj.Entity.ID = task.ID
@@ -245,7 +247,7 @@ func (e *Executor) registerTask(task *ScheduledTaskInstance, portNum string, con
 	}
 }
 
-//Subscribe for the input stream
+// Subscribe for the input stream
 func (e *Executor) subscribeInputStream(refURL string, correlatorID string, inputStream *InputStream) (string, error) {
 	subscription := SubscribeContextRequest{}
 
@@ -321,7 +323,7 @@ func (e *Executor) TerminateTask(taskID string, paused bool) {
 	INFO.Println("================== terminate task ID ============ ", taskID)
 
 	e.taskMap_lock.Lock()
-	if _, ok := e.taskInstances[taskID]; ok == false {
+	if _, ok := e.taskInstances[taskID]; !ok {
 		e.taskMap_lock.Unlock()
 		return
 	}
@@ -362,7 +364,7 @@ func (e *Executor) TerminateTask(taskID string, paused bool) {
 
 	e.taskMap_lock.Unlock()
 
-	if paused == true {
+	if paused {
 		// only update its status
 		e.worker.TaskUpdate(topologyName, taskName, taskID, serviceIntentID, "paused")
 	} else {
@@ -395,7 +397,7 @@ func (e *Executor) terminateAllTasks() {
 
 // add the specified input for an existing task
 func (e *Executor) onAddInput(flow *FlowInfo) {
-	if e.workerCfg.Worker.StartActualTask == false {
+	if !e.workerCfg.Worker.StartActualTask {
 		return
 	}
 
@@ -422,7 +424,9 @@ func (e *Executor) handleAddInput(flow *FlowInfo) {
 	taskCtx := e.taskInstances[flow.TaskInstanceID]
 	subID, err := e.subscribeInputStream(taskCtx.refURL, taskCtx.TaskID, &flow.InputStream)
 	if err == nil {
-		DEBUG.Println("===========subscribe new input = ", flow, " , subID = ", subID)
+		if LoggerIsEnabled(DEBUG) {
+			DEBUG.Println("===========subscribe new input = ", flow, " , subID = ", subID)
+		}
 		taskCtx.Subscriptions = append(taskCtx.Subscriptions, subID)
 		taskCtx.EntityID2SubID[flow.InputStream.ID] = subID
 	} else {
@@ -447,7 +451,7 @@ func (e *Executor) handleDelayedAddInputCommands(taskInstanceID string) {
 
 // remove the specified input for an existing task
 func (e *Executor) onRemoveInput(flow *FlowInfo) {
-	if e.workerCfg.Worker.StartActualTask == false {
+	if !e.workerCfg.Worker.StartActualTask {
 		return
 	}
 

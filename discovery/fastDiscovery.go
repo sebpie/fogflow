@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -50,8 +51,6 @@ type FastDiscovery struct {
 	delayStoreOnFile int
 	storeOnDisk      bool
 
-	isDebugEnabled bool
-
 	// lock to control the update subscriptions in database
 	subscriptionsDbLock               sync.RWMutex
 	storeSubscriptionsOnFileScheduled bool
@@ -74,7 +73,6 @@ func (fd *FastDiscovery) Init(config *Config) {
 	fd.storeSubscriptionsOnFileScheduled = false
 	fd.storeBrokersOnFileScheduled = false
 	fd.storeOnDisk = config.Discovery.StoreOnDisk
-	fd.isDebugEnabled = config.Logging.DebugEnabled
 	//INFO.Println("config.Discovery.DelayStoreRegistrationsOnFile ", config.Discovery.DelayStoreStoreOnFile)
 	fd.delayStoreOnFile = config.Discovery.DelayStoreOnFile
 
@@ -600,7 +598,9 @@ func (fd *FastDiscovery) updateSubscriptionsOnDisk() {
 	// somebody has the lock
 
 	if fd.storeSubscriptionsOnFileScheduled {
-		INFO.Println("A store on file for registrations is already scheduled")
+		if LoggerIsEnabled(DEBUG) {
+			DEBUG.Println("A store on file for registrations is already scheduled")
+		}
 		return
 	}
 
@@ -665,7 +665,9 @@ func (fd *FastDiscovery) updateBrokersOnDisk() {
 	// somebody has the lock
 
 	if fd.storeBrokersOnFileScheduled {
-		INFO.Println("A store on file for registrations is already scheduled")
+		if LoggerIsEnabled(DEBUG) {
+			DEBUG.Println("A store on file for registrations is already scheduled")
+		}
 		return
 	}
 
@@ -690,7 +692,7 @@ func (fd *FastDiscovery) updateBrokersOnDisk() {
 		ERROR.Println(err)
 	}
 	// err = ioutil.WriteFile("brokers.json", content, 0644)
-	err = ioutil.WriteFile(fd.dbFiles["brokers"], content, 0644)
+	err = os.WriteFile(fd.dbFiles["brokers"], content, 0644)
 	if err != nil {
 		ERROR.Println(err)
 	}
@@ -707,7 +709,7 @@ func (fd *FastDiscovery) readBrokersFromDisk() {
 	defer fd.brokersDbLock.Unlock()
 
 	// content, err := ioutil.ReadFile("brokers.json")
-	content, err := ioutil.ReadFile(fd.dbFiles["brokers"])
+	content, err := os.ReadFile(fd.dbFiles["brokers"])
 	if err != nil {
 		ERROR.Println(err)
 	}

@@ -24,6 +24,10 @@ var (
 	DEBUG    *log.Logger
 )
 
+func LoggerIsEnabled(l *log.Logger) bool {
+	return (fmt.Sprintf("%T", l.Writer()) != "io.discard")
+}
+
 type SiteInfo struct {
 	ExternalAddress string `json:"externalAddress"`
 	GeohashID       string `json:"geohashID"`
@@ -786,7 +790,9 @@ func (restriction *Restriction) GetScope() OperationScope {
 func (restriction *Restriction) GetNearbyFilter() *NearBy {
 	for _, scope := range restriction.Scopes {
 
-		DEBUG.Println(" SCOPE: ", scope)
+		if LoggerIsEnabled(DEBUG) {
+			DEBUG.Println(" SCOPE: ", scope)
+		}
 
 		if scope.Type == "nearby" {
 			nearby := scope.Value.(NearBy)

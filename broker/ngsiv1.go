@@ -120,7 +120,9 @@ func (tb *ThinBroker) NGSIV1_SubscribeContext(w rest.ResponseWriter, r *rest.Req
 	subReq := SubscribeContextRequest{}
 	subReq.Attributes = make([]string, 0)
 
-	DEBUG.Println("Subscription request from: ", r.RemoteAddr)
+	if LoggerIsEnabled(DEBUG) {
+		DEBUG.Println("Subscription request from: ", r.RemoteAddr)
+	}
 
 	err := r.DecodeJsonPayload(&subReq)
 	if err != nil {
@@ -255,7 +257,9 @@ func (tb *ThinBroker) NGSIV1_NotifyContextAvailability(w rest.ResponseWriter, r 
 	tb.subLinks_lock.Lock()
 	mainSubID, exist := tb.availabilitySub2MainSub[subID]
 	if !exist {
-		DEBUG.Println("put it into the tempCache and handle it later")
+		if LoggerIsEnabled(DEBUG) {
+			DEBUG.Println("put it into the tempCache and handle it later")
+		}
 		tb.tmpNGSI9NotifyCache[subID] = &notifyContextAvailabilityReq
 	}
 	tb.subLinks_lock.Unlock()

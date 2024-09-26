@@ -305,7 +305,9 @@ func (worker *WorkerProfile) IsLive(duration int) bool {
 	delta := time.Since(worker.Last_Heartbeat_Update)
 
 	if int(delta.Seconds()) >= duration {
-		DEBUG.Println("Worker delta failed ", int(delta.Seconds()), " while duration is ", duration)
+		if LoggerIsEnabled(DEBUG) {
+			DEBUG.Println("Worker delta failed ", int(delta.Seconds()), " while duration is ", duration)
+		}
 		return false
 	} else {
 		return true
