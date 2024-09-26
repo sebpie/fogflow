@@ -127,7 +127,7 @@ func (dockerengine *DockerEngine) findFreePortNumber() int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-//functionCode string, taskID string, adminCfg []interface{}, servicePorts []string)
+// functionCode string, taskID string, adminCfg []interface{}, servicePorts []string)
 func (dockerengine *DockerEngine) StartTask(task *ScheduledTaskInstance, brokerURL string) (string, string, error) {
 	dockerImage := task.DockerImage
 	INFO.Println("to execute Task [", task.ID, "] to perform Operation [",
@@ -179,6 +179,8 @@ func (dockerengine *DockerEngine) StartTask(task *ScheduledTaskInstance, brokerU
 		commands = append(commands, setOutputCmd)
 	}
 
+	hostConfig := docker.HostConfig{}
+
 	// check if it is required to set up the portmapping for its endpoint services
 	servicePorts := make([]string, 0)
 
@@ -186,6 +188,31 @@ func (dockerengine *DockerEngine) StartTask(task *ScheduledTaskInstance, brokerU
 		// deal with the service port
 		if parameter.Name == "service_port" {
 			servicePorts = strings.Split(parameter.Value, ";")
+		}
+
+		var gpu_count = 0
+		var err error
+		if parameter.Name == "gpus" {
+			DEBUG.Println("Enable NVIDIA gpus")
+			hostConfig.Runtime = "nvidia"
+
+			if parameter.Value == "all" {
+				gpu_count = -1
+			} else {
+				count, err = strconv.Atoi(parameter.Value)
+				DEBUG.Println("Error converting parameter to int: ", err)
+			}
+
+			if count != 0 {
+				// Configure GPU resources
+				// DEBUG.Println("Request GPU devices")
+				hostConfig.DeviceRequests = append(hostConfig.DeviceRequests, docker.DeviceRequest{
+					Driver:       "nvidia",
+					Count:        gpu_count, // Allocate all available GPUs
+					Capabilities: [][]string{{"compute", "utility"}},
+				})
+			}
+			// DEBUG.Printf("hostConfig: %v", hostConfig)
 		}
 	}
 
@@ -198,8 +225,6 @@ func (dockerengine *DockerEngine) StartTask(task *ScheduledTaskInstance, brokerU
 	evs = append(evs, fmt.Sprintf("adminCfg=%s", jsonString))
 
 	config := docker.Config{Image: dockerImage, Env: evs}
-
-	hostConfig := docker.HostConfig{}
 
 	//if runtime.GOOS == "darwin" {   already use the bridge model
 	internalPort := docker.Port(freePort + "/tcp")

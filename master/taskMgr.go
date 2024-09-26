@@ -99,7 +99,7 @@ func (gf *GroupInfo) GetHash() string {
 	sortedpairs := make([]*KVPair, 0)
 
 	for k, v := range *gf {
-		DEBUG.Println("group k: %s, v: %+v\r\n", k, v)
+		DEBUG.Printf("group k: %s, v: %+v\r\n", k, v)
 
 		kvpair := KVPair{}
 		kvpair.Key = k
@@ -292,12 +292,13 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 					for i := 0; i < len(task.Inputs); i++ {
 						if task.Inputs[i].ID == entity.ID && !(task.Inputs[i].Location.IsEqual(&entity.Location)) {
 							locationChanged = true
-							DEBUG.Println("[location changed] entity: ", entity.ID)
+							DEBUG.Println("[location changed] entity: ", entity.ID, " - task.Inputs[", i, "]: ", task.Inputs[i])
 							// update the input entities with the new location
 							task.Inputs[i].Location = entity.Location
 							break
 						}
 					}
+					DEBUG.Println("Done dealing with location change")
 
 					// if the location is changed, calculate the new optimal worker assignment
 					newOptimalWorkerID := task.WorkerID
