@@ -174,12 +174,16 @@ func (tb *ThinBroker) NGSIV1_SubscribeContext(w rest.ResponseWriter, r *rest.Req
 	tb.subscriptions[subID] = &subReq
 	tb.subscriptions_lock.Unlock()
 	// take actions
-	if subReq.Subscriber.IsInternal == true {
+	if subReq.Subscriber.IsInternal {
 		INFO.Println("internal subscription coming from another broker")
 
 		for _, entity := range subReq.Entities {
 			tb.e2sub_lock.Lock()
-			tb.entityId2Subcriptions[entity.ID] = append(tb.entityId2Subcriptions[entity.ID], subID)
+			if tb.subscriptions[subID].IsSimpleByType() {
+				tb.entityId2Subcriptions["*"] = append(tb.entityId2Subcriptions["*"], subID)
+			} else {
+				tb.entityId2Subcriptions[entity.ID] = append(tb.entityId2Subcriptions[entity.ID], subID)
+			}
 			tb.e2sub_lock.Unlock()
 		}
 		tb.notifyOneSubscriberWithCurrentStatus(subReq.Entities, subID)
@@ -250,13 +254,13 @@ func (tb *ThinBroker) NGSIV1_NotifyContextAvailability(w rest.ResponseWriter, r 
 	//map it to the main subscription
 	tb.subLinks_lock.Lock()
 	mainSubID, exist := tb.availabilitySub2MainSub[subID]
-	if exist == false {
+	if !exist {
 		DEBUG.Println("put it into the tempCache and handle it later")
 		tb.tmpNGSI9NotifyCache[subID] = &notifyContextAvailabilityReq
 	}
 	tb.subLinks_lock.Unlock()
 
-	if exist == true {
+	if exist {
 		tb.handleNGSI9Notify(mainSubID, &notifyContextAvailabilityReq)
 	}
 }

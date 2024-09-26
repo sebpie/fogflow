@@ -835,9 +835,7 @@ func (registredEntity *EntityRegistration) GetLocation() Point {
 	return Point{0.0, 0.0}
 }
 
-//
 // used by master to group the received input
-//
 func (registredEntity *EntityRegistration) IsMatched(restrictions map[string]interface{}) bool {
 	matched := true
 
@@ -936,6 +934,20 @@ type SubscribeContextRequest struct {
 	NotifyConditions []NotifyCondition `json:"notifyConditions,omitempty"`
 	Throttling       string            `json:"throttling,omitempty"`
 	Subscriber       Subscriber
+}
+
+func (subscribeContextRequest *SubscribeContextRequest) IsSimpleByType() bool {
+	var flag = true
+
+	if len(subscribeContextRequest.Restriction.Scopes) == 0 {
+		if len(subscribeContextRequest.Entities) == 1 {
+			if subscribeContextRequest.Entities[0].ID == "" {
+				flag = true
+			}
+		}
+	}
+
+	return flag
 }
 
 type SubscriptionRequest struct {
@@ -1375,7 +1387,7 @@ type ConfigCommand struct {
 	CorrelatorID    string `json:"correlatorID"`
 }
 
-//To handle RegisterContextRequest coming from IoT Agent
+// To handle RegisterContextRequest coming from IoT Agent
 type RegisterContextRequest1 struct {
 	ContextRegistrations []ContextRegistration1 `json:"contextRegistrations,omitempty"`
 	Duration             string                 `json:"duration,omitempty"`
@@ -1441,9 +1453,7 @@ type LDNotifyContextRequest struct {
 	NotifyAt       string        `json:"notifiedAt,omitempty"`
 }
 
-//
 // the part to deal with NGSI v1 update supported by Orion Context Broker
-//
 func (element *ContextElement) SetEntityID() {
 	if element.ID != "" {
 		element.Entity.ID = element.ID

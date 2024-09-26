@@ -106,6 +106,15 @@ type InputStreamConfig struct {
 	Scoped             bool     `json:"scoped"`
 }
 
+// This is to state that we do not need to save all registrations if the subscription is simply by type
+func (inputSelect *InputStreamConfig) IsSimpleByType() bool {
+	if !inputSelect.Scoped && inputSelect.GroupBy != "EntityID" {
+		return true
+	} else {
+		return false
+	}
+}
+
 type OutputStreamConfig struct {
 	EntityType string `json:"entity_type"`
 }

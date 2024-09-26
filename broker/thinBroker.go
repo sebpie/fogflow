@@ -92,13 +92,13 @@ func (tb *ThinBroker) OnTimer() { // for every 2 second
 		hasCachedNotification := false
 		tb.subscriptions_lock.Lock()
 		if subscription, exist := tb.subscriptions[sid]; exist {
-			if subscription.Subscriber.RequireReliability == true && len(subscription.Subscriber.NotifyCache) > 0 {
+			if subscription.Subscriber.RequireReliability && len(subscription.Subscriber.NotifyCache) > 0 {
 				hasCachedNotification = true
 			}
 		}
 		tb.subscriptions_lock.Unlock()
 
-		if hasCachedNotification == true {
+		if hasCachedNotification {
 			elements := make([]ContextElement, 0)
 			tb.sendReliableNotify(elements, sid)
 		}
@@ -663,7 +663,17 @@ func (tb *ThinBroker) UnsubscribeContextAvailability(sid string) error {
 	return err
 }
 
+func stringsContains(slice []string, e string) bool {
+	for _, sliceElement := range slice {
+		if sliceElement == e {
+			return true
+		}
+	}
+	return false
+}
+
 func (tb *ThinBroker) handleNGSI9Notify(mainSubID string, notifyContextAvailabilityReq *NotifyContextAvailabilityRequest) {
+
 	var action string
 	notifyContextAvailabilityReq.ErrorCode.Code = 301
 	switch notifyContextAvailabilityReq.ErrorCode.Code {
@@ -674,15 +684,30 @@ func (tb *ThinBroker) handleNGSI9Notify(mainSubID string, notifyContextAvailabil
 	case 410:
 		action = "DELETE"
 	}
-	INFO.Println(action, " subID ", mainSubID)
+
+	if tb.isDebugEnabled {
+		DEBUG.Println(action, " subID ", mainSubID, " subscription isSimpleByType ", tb.subscriptions[mainSubID].IsSimpleByType())
+		DEBUG.Println(tb.entityId2Subcriptions)
+	}
+
 	for _, registrationResp := range notifyContextAvailabilityReq.ContextRegistrationResponseList {
 		registration := registrationResp.ContextRegistration
 		for _, eid := range registration.EntityIdList {
-			INFO.Println("===> ", eid, " , ", mainSubID)
+
+			if tb.isDebugEnabled {
+				DEBUG.Println("===> ", eid, " , ", mainSubID)
+			}
+
 			tb.e2sub_lock.Lock()
 
 			if action == "CREATE" {
-				tb.entityId2Subcriptions[eid.ID] = append(tb.entityId2Subcriptions[eid.ID], mainSubID)
+				if tb.subscriptions[mainSubID].IsSimpleByType() {
+					if !stringsContains(tb.entityId2Subcriptions["*"], mainSubID) {
+						tb.entityId2Subcriptions["*"] = append(tb.entityId2Subcriptions["*"], mainSubID)
+					}
+				} else {
+					tb.entityId2Subcriptions[eid.ID] = append(tb.entityId2Subcriptions[eid.ID], mainSubID)
+				}
 			} else if action == "DELETE" {
 				subList := tb.entityId2Subcriptions[eid.ID]
 				for i, id := range subList {
@@ -692,16 +717,16 @@ func (tb *ThinBroker) handleNGSI9Notify(mainSubID string, notifyContextAvailabil
 					}
 				}
 			} else if action == "UPDATE" {
-				existFlag := false
-				for _, subID := range tb.entityId2Subcriptions[eid.ID] {
-					if subID == mainSubID {
-						existFlag = true
-						break
+				if tb.subscriptions[mainSubID].IsSimpleByType() {
+					if !stringsContains(tb.entityId2Subcriptions["*"], mainSubID) {
+						tb.entityId2Subcriptions["*"] = append(tb.entityId2Subcriptions["*"], mainSubID)
+					}
+				} else {
+					if !stringsContains(tb.entityId2Subcriptions[eid.ID], mainSubID) {
+						tb.entityId2Subcriptions[eid.ID] = append(tb.entityId2Subcriptions[eid.ID], mainSubID)
 					}
 				}
-				if existFlag == false {
-					tb.entityId2Subcriptions[eid.ID] = append(tb.entityId2Subcriptions[eid.ID], mainSubID)
-				}
+
 			}
 
 			tb.e2sub_lock.Unlock()
@@ -717,24 +742,34 @@ func (tb *ThinBroker) handleNGSI9Notify(mainSubID string, notifyContextAvailabil
 				tb.notifyOneSubscriberWithCurrentStatus(registration.EntityIdList, mainSubID)
 			}
 		} else {
-			//for matched entities provided by other IoT Brokers
-			newSubscription := SubscribeContextRequest{}
-			newSubscription.Entities = registration.EntityIdList
-			newSubscription.Reference = tb.MyURL
-			newSubscription.Subscriber.BrokerURL = registration.ProvidingApplication
 
-			if action == "CREATE" || action == "UPDATE" {
-				sid, err := subscribeContextProvider(&newSubscription, registration.ProvidingApplication, tb.SecurityCfg)
-				if err == nil {
-					// INFO.Println("issue a new subscription ", sid)
+			// this check is to subscribe to the data only for complex subscription
+			if !tb.subscriptions[mainSubID].IsSimpleByType() || stringsContains(tb.entityId2Subcriptions["*"], mainSubID) {
 
-					tb.subscriptions_lock.Lock()
-					tb.subscriptions[sid] = &newSubscription
-					tb.subscriptions_lock.Unlock()
+				//for matched entities provided by other IoT Brokers
+				newSubscription := SubscribeContextRequest{}
+				if tb.subscriptions[mainSubID].IsSimpleByType() {
+					entity := tb.subscriptions[mainSubID].Entities[0]
+					newSubscription.Entities = append(newSubscription.Entities, entity)
+				} else {
+					newSubscription.Entities = registration.EntityIdList
+				}
+				newSubscription.Reference = tb.MyURL
+				newSubscription.Subscriber.BrokerURL = registration.ProvidingApplication
 
-					tb.subLinks_lock.Lock()
-					tb.main2Other[mainSubID] = append(tb.main2Other[mainSubID], sid)
-					tb.subLinks_lock.Unlock()
+				if action == "CREATE" || action == "UPDATE" {
+					sid, err := subscribeContextProvider(&newSubscription, registration.ProvidingApplication, tb.SecurityCfg)
+					if err == nil {
+						// INFO.Println("issue a new subscription ", sid)
+
+						tb.subscriptions_lock.Lock()
+						tb.subscriptions[sid] = &newSubscription
+						tb.subscriptions_lock.Unlock()
+
+						tb.subLinks_lock.Lock()
+						tb.main2Other[mainSubID] = append(tb.main2Other[mainSubID], sid)
+						tb.subLinks_lock.Unlock()
+					}
 				}
 			}
 		}
