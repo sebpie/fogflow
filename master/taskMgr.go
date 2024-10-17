@@ -304,13 +304,12 @@ func (flow *FogFlow) expandExecutionPlan(entityID string, inputSubscription *Inp
 					for i := 0; i < len(task.Inputs); i++ {
 						if task.Inputs[i].ID == entity.ID && !(task.Inputs[i].Location.IsEqual(&entity.Location)) {
 							locationChanged = true
-							DEBUG.Println("[location changed] entity: ", entity.ID, " - task.Inputs[", i, "]: ", task.Inputs[i])
+							DEBUG.Println("[location changed] entity: ", entity.ID)
 							// update the input entities with the new location
 							task.Inputs[i].Location = entity.Location
 							break
 						}
 					}
-					DEBUG.Println("Done dealing with location change")
 
 					// if the location is changed, calculate the new optimal worker assignment
 					newOptimalWorkerID := task.WorkerID
